@@ -1,0 +1,67 @@
+# Star Speed（星速）— Godot 4.5.1 第一人称赛车 demo
+
+车在轨道上跑（不能左右转向），玩家只控制油门、刹车、升降档。玩法核心是进弯前把车速降到弯道极限以下，以及在长直道和高速弯上体验极速。
+
+和开发者用中文交流。开发者通过试玩给反馈，每一轮反馈改完都要提交一次 commit。
+
+## 运行与检查
+
+- Godot：`D:\Software\Godot_v4.5.1\Godot_v4.5.1-stable_win64.exe`（带控制台输出的是 `..._console.exe`）。
+- 开发者自己试玩：直接用 Godot 打开项目运行，默认全屏。
+- **Claude 自己运行 Godot 时，不能在开发者屏幕上弹出窗口，也不能出声。**
+  - 只查逻辑：`--headless`。
+  - 需要真实渲染（截图、帧率）：用 `tools/hidden_run.ps1` 在隐藏的 Windows 桌面上启动，并且必须加 `--audio-driver Dummy`。项目设成了全屏，`--windowed` 不起作用。
+- 规则检查（每次改完规则、赛道、调参都要跑，应全部通过）：
+
+```bash
+"D:/Software/Godot_v4.5.1/Godot_v4.5.1-stable_win64_console.exe" --headless --path . --script tools/rule_checks.gd
+```
+
+  输出最后一行是"结果：N 通过，M 失败"。退出后打印的 `grade_at ... Nil` 错误是退出时的残留，可以忽略。输出重定向到文件再读，不要接管道到 `tail`。
+- 隐藏桌面运行的写法（PowerShell，必须在同一进程里用 `&` 调用）：
+
+```powershell
+$cmd = '"D:\Software\Godot_v4.5.1\Godot_v4.5.1-stable_win64.exe" --path "D:\Claude\egm-game-prototypes\star-speed" --audio-driver Dummy --log-file "<日志路径>" --script "<脚本路径>"'
+& "tools\hidden_run.ps1" -CommandLine $cmd -TimeoutSec 120
+```
+
+  截图脚本是一个 `extends SceneTree` 的脚本：实例化 `res://scenes/main.tscn`，把 `CarSim.use_device_input` 设为 false，用 `car.place(path, s, v, gear, from_access)` 摆车，`await RenderingServer.frame_post_draw` 后 `root.get_texture().get_image().save_png(...)`。
+- 声音好不好、动态手感，Claude 验证不了，要如实告诉开发者需要他来试。
+
+## 按键
+
+W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档，回车 = 驶出开关（下次岔路口上主赛道），Esc = 暂停。
+调试：F2 重新读取调参文件，F3 调试面板，F4 跳到下一个区段起点，F5 轮换画面方案。
+
+## 结构
+
+- `game-spec/game_spec.md`：最初的规格。**不要修改 `game-spec/` 里的任何文件。** 规格只做了第 12 节 Build Order 的阶段 1–4；之后的改动都来自开发者试玩反馈，很多地方已经和规格不一致（见下）。两者冲突时以开发者的反馈为准。
+- `data/tuning.tres`（类型 `scripts/tuning_data.gd`）：所有数值。**数值不要写死在脚本里**，加新数值就在这两个文件里加字段。脚本里用 `Tuning.d.<字段>` 读。`tNN_` 开头的对应规格的调参表 T-NN，其余是试玩后加的。
+- `data/engine_mix_default.json`：声音混合参数。
+- `data/track_access.tres`、`track_loop.tres`、`track_main.tres`：赛道分段表（直道 / 左弯 / 右弯、半径、角度、长度、坡度）。主赛道分森林、冰原、城市三个区段。
+- `scripts/car_sim.gd`：全部驾驶规则，不碰画面和声音。`scripts/track.gd`：由分段表生成路面和查询接口。`scripts/main.gd`：把各节点连起来，外加临时的失败演出、复位、测试方块。
+- `scripts/camera_rig.gd`（视野、震动、转向不足时的歪头）、`speed_fx.gd` + `shaders/post_world.gdshader`（景物拉线）、`cockpit.gd`（临时座舱和转速表）、`minimap.gd`、`engine_audio.gd`、`tire_audio.gd`、`explosion.gd`。
+- `tools/`：规则检查脚本和隐藏桌面启动器（带 `.gdignore`，不属于游戏）。
+- 没有 Blender 模型：座舱、仪表、路边景物全是引擎自带几何体的临时替身。路两侧的彩色方块是临时参照物。
+
+## 当前行为里和规格不一样的地方
+
+- 有刹车（规格没有）。有第 9 档，极速 800 km/h（9 档约 6500 转）。
+- 打滑是物理算的：车速超过弯道极限车速就向弯外侧滑，降回极限以下就拉回原路线，滑到离中心线 `slide_wall_m` 才算撞。没有规格里的挣扎计时器。
+- 失败后是"爆炸 → 退到弯前复位"，不是 Game Over 和进场回放。失败原因靠演出表现，不显示文字。
+- 轮胎相关的画面抖动全部去掉；接近极限和打滑时视角向弯内侧偏转、歪头。
+- 景物速度感用按深度的运动拉线（画面方案 M），不是规格的"清晰圆 + 线化"。
+- 速度效果（震动、视野、拉线）随车速按幂曲线增长，中低速很弱，极速很夸张；换挡瞬间没有视野跳变。
+- 引擎声的音调和响度只跟转速走，与油门、档位、换挡无关；转速在声音里是连续扫过去的；断油是引擎声自己的断续。
+- 轮胎声三个状态：刚碰到极限、处于极限中、打滑。
+- 主赛道比规格长（长直道加长，冰原是连续高速弯）。
+
+## 已知的坑
+
+- GDScript 里把字典里的 PackedArray 用 `as` 转型后 `append`，改的是副本。要原地追加就用普通 `Array`。
+- 岔路口、并入口附近不放测试方块（`main.gd` 的 `_near_road`），急弯自己的两侧要有。改这块后从正上方截图核对。
+- 引擎声目前是脚本合成的占位音（`assets/audio/engine/`），等开发者放入真实录音后同名覆盖即可。音频来源和许可写在 `assets/audio/CREDITS.md`，用了别人的素材要在那里登记。
+
+## 提交
+
+每完成一项改动或一轮反馈就提交一次，提交信息用英文、说明改了什么和为什么。不要推送到远端，除非开发者要求。
