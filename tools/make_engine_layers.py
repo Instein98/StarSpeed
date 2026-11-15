@@ -1,36 +1,32 @@
-"""从 muted.io 的 Performance Cars 采样包（CC0）生成四个转速层的引擎循环声。
+"""从一段真实录音生成四个转速层的引擎循环声。
 
-用法： python -I tools/make_engine_layers.py <解压后的采样包目录> <输出目录>
+用法： python -I tools/make_engine_layers.py [源文件] [输出目录]
+默认源文件 tools/audio_src/v6_vtec_exhaust_fast.mp3，默认输出 assets/audio/engine。
 
-四层全部取自同一段录音（011 号开头 1.55 秒：同一辆车的一次轰油，基频从 70 Hz 连续升到 137 Hz），
-所以各层音色一致。做法：
-1. 跟踪这段录音的基频曲线；
+源录音：一台 3.2 升自然吸气 V6（VTEC）全力加速时在排气口录的声音（Freesound，EvanBoyerman，CC-BY 4.0）。
+四层全部取自这一段里的一档和二档加速，所以各层音色一致，而且都是带负载的声音。做法：
+1. 跟踪加速段的基频曲线（一档约 78→92 Hz，二档 86→129 Hz）；
 2. 每一层取曲线上的一段，按瞬时基频做随时间变化的重采样，把音高"拉平"成这一层该有的基频
-   （游戏里 基频 = 转速 ÷ 30，和早先合成音的音高一致）；
+   （游戏里 基频 = 转速 ÷ 40）；
 3. 截取整数个周期并把首尾交叉淡化成无缝循环，四层响度拉齐。
-低转层取轰油的前半段，高转层取后半段，所以高转层带的是这台发动机高转时的音色。
 """
 import subprocess, sys, os, wave
 import numpy as np
 
 SR = 48000
-SOURCE = "011"
-SRC_START, SRC_END = 0.0, 1.56
-F0_START = 70.0                 # 这段开头的基频，跟踪的起点
-RPM_TO_HZ = 1.0 / 30.0
-# 层转速, 取基频曲线上的哪一段（Hz）
+RPM_TO_HZ = 1.0 / 40.0
+# 层转速, 源里的起止秒, 这段开头的基频（跟踪起点）, 取基频曲线上的哪一段（Hz）
 LAYERS = [
-    (2000, 70.0, 100.0),
-    (3500, 72.0, 126.0),
-    (5500, 86.0, 137.0),
-    (8000, 92.0, 137.0),
+    (2000, 0.9, 3.25, 71.0, 78.0, 92.0),      # 一档起步
+    (3500, 7.15, 11.35, 86.0, 86.0, 104.0),   # 二档前段
+    (5500, 7.15, 11.35, 86.0, 104.0, 126.0),  # 二档中段
+    (8000, 7.15, 11.35, 86.0, 112.0, 130.0),  # 二档后段（最高转）
 ]
 TARGET_RMS = 0.16
-# 录音是远处收的，几乎只剩基频和二次谐波，听起来是闷的"嗡"，小音箱上低转几乎听不见。
-# 所以对拉平后的波形做两步加工，把它本身的高次谐波提出来（不是另外叠加合成音）：
-# 先按谐波次数提升高频（一阶微分混入），再做软削波。早先的合成音也是这种谐波丰富、带点失真的音色。
-EMPHASIS = float(os.environ.get("ENGINE_EMPHASIS", "1.0"))
-DRIVE = float(os.environ.get("ENGINE_DRIVE", "3.0"))
+# 可选的加工：把波形本身的高次谐波提出来（一阶微分混入 + 软削波），给偏闷的录音用。
+# 现在这段排气口录音本身谐波已经很丰富，默认两项都是 0，即不加工。
+EMPHASIS = float(os.environ.get("ENGINE_EMPHASIS", "0"))
+DRIVE = float(os.environ.get("ENGINE_DRIVE", "0"))
 XFADE_PERIODS = 6
 
 
@@ -55,10 +51,10 @@ def f0_near(x, guess, span=0.12):
     return SR / k
 
 
-def track_f0(x):
+def track_f0(x, start):
     win, hop = int(0.08 * SR), int(0.01 * SR)
     times, freqs = [], []
-    guess = F0_START
+    guess = start
     for i in range(0, len(x) - win, hop):
         guess = f0_near(x[i:i + win], guess)
         times.append((i + win / 2) / SR)
@@ -83,10 +79,12 @@ def flatten(x, curve, lo, hi, target):
 
 
 def enrich(x, f0):
+    if EMPHASIS <= 0.0 and DRIVE <= 0.0:
+        return x
     d = np.gradient(x) * SR / (2 * np.pi * f0 * 3.0)     # 第 3 次谐波处增益为 1，次数越高提得越多
     y = x + EMPHASIS * d
     y /= np.sqrt((y ** 2).mean()) * 3.0                   # 归一到固定电平再削波，四层的失真程度相同
-    return np.tanh(y * DRIVE)
+    return np.tanh(y * DRIVE) if DRIVE > 0.0 else y
 
 
 def make_loop(x, period):
@@ -107,12 +105,12 @@ def brightness(x, f0):
 
 
 def main():
-    src, dst = sys.argv[1], sys.argv[2]
+    src = sys.argv[1] if len(sys.argv) > 1 else "tools/audio_src/v6_vtec_exhaust_fast.mp3"
+    dst = sys.argv[2] if len(sys.argv) > 2 else "assets/audio/engine"
     os.makedirs(dst, exist_ok=True)
-    x = load(os.path.join(src, "%s-performance-cars-mutedio.wav" % SOURCE), SRC_START, SRC_END)
-    curve, resid = track_f0(x)
-    print("source f0 %.1f -> %.1f Hz, fit residual %.2f Hz" % (curve[0], curve[-1], resid))
-    for rpm, lo, hi in LAYERS:
+    for rpm, t0, t1, start, lo, hi in LAYERS:
+        x = load(src, t0, t1)
+        curve, resid = track_f0(x, start)
         target = rpm * RPM_TO_HZ
         y = flatten(x, curve, lo, hi, target)
         y = enrich(y, target)
@@ -131,9 +129,8 @@ def main():
             subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", wav, "-ar", "44100", "-c:a", "libvorbis",
                             "-q:a", "6", os.path.join(dst, "%s_%d.ogg" % (prefix, rpm))], check=True)
         os.remove(wav)
-        mid = (lo + hi) / 2
-        print("%d rpm: source %d-%d Hz -> %.1f Hz (shift x%.2f), measured %.1f Hz, loop %.2f s, peak %.2f, harmonics 1-2/3-6/7+ = %s"
-              % (rpm, lo, hi, target, target / mid, check, len(y) / SR, peak,
+        print("%d rpm: source f0 %.0f-%.0f Hz (curve %.0f-%.0f, fit residual %.2f) -> %.1f Hz (shift x%.2f), measured %.1f Hz, loop %.2f s, peak %.2f, harmonics 1-2/3-6/7+ = %s"
+              % (rpm, lo, hi, curve[0], curve[-1], resid, target, target / ((lo + hi) / 2), check, len(y) / SR, peak,
                  " ".join("%.2f" % v for v in brightness(y, target))))
 
 
