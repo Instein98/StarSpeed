@@ -60,7 +60,8 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档，回车 = 驶出�
 
 - GDScript 里把字典里的 PackedArray 用 `as` 转型后 `append`，改的是副本。要原地追加就用普通 `Array`。
 - 岔路口、并入口附近不放测试方块（`main.gd` 的 `_near_road`），急弯自己的两侧要有。改这块后从正上方截图核对。
-- 引擎声目前是脚本合成的占位音（`assets/audio/engine/`），等开发者放入真实录音后同名覆盖即可。音频来源和许可写在 `assets/audio/CREDITS.md`，用了别人的素材要在那里登记。
+- 引擎声的四个转速层是用 `tools/make_engine_layers.py` 从 muted.io 的 Performance Cars 采样包（CC0）切出来的，三段录音来自不同的车，层与层之间音色可能不连贯。采样包本身（266 MB 的 zip）不进仓库。音频来源和许可写在 `assets/audio/CREDITS.md`，用了别人的素材要在那里登记。
+- 替换音频文件后，Claude 自己跑 Godot 前要先执行一次 `--headless --import`，否则读到的还是旧的导入缓存。
 
 ## 提交
 

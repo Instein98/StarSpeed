@@ -15,5 +15,14 @@
 
 ## 引擎声（assets/audio/engine/）
 
-`on_*.ogg`、`off_*.ogg`、`limiter.ogg` 目前是用脚本合成的临时占位音（非录音，无第三方版权），
-等开发者放入真实录音后同名覆盖。
+`on_2000.ogg`、`on_3500.ogg`、`on_5500.ogg`、`on_8000.ogg`（`off_*.ogg` 是同样内容的副本）取自真实录音：
+
+- 原始素材："Performance Cars" 免费采样包，muted.io
+- 来源：https://muted.io/performance-cars
+- 许可：CC0
+- 用到的文件和时间段：003（1.0–6.5 秒，低转）、034（27.4–29.2 秒，中转，用了两次）、029（6.0–16.0 秒，高转）
+- 改动：转单声道；重采样到每层该有的基频（基频 = 转速 ÷ 25，即 80 / 140 / 220 / 320 Hz）；
+  截取整数个周期并把首尾交叉淡化成循环；四层响度拉齐；转成 OGG。
+- 重新生成：`python -I tools/make_engine_layers.py <解压后的采样包目录> assets/audio/engine`
+
+`limiter.ogg` 是早先合成的断油声，现在不再使用（断油由引擎声自己的断续表现）。
