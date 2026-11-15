@@ -45,6 +45,7 @@ extends Resource
 @export var t27_slide_max_m: float
 ## 打滑（规格里没有，开发者试玩后加的；T-25、T-26、T-27 不再使用）
 @export var slide_wall_m: float                          ## 车滑到离中心线多远算撞上路边
+@export var slide_return_max_angle_deg: float            ## 回原路线时车头最多偏离赛道方向多少度（横向速度 ≤ 车速 × tan）
 @export var slide_return_time: float                     ## 抓地力恢复后把车拉回原路线的时间常数（秒）
 @export var recover_back_m: float                        ## 失败后的复位点：出事那个弯的入口再往回多少米
 
@@ -68,6 +69,7 @@ extends Resource
 @export var understeer_edge_share: float                ## 刚到极限（ratio 100%）时用到上面两个角度的多少
 @export var understeer_full_over: float                 ## ratio 超出 100% 多少时偏到最大
 @export var understeer_smooth_time: float
+@export var slide_return_yaw_gain: float                 ## 救回时车头偏角在画面上放大多少倍（1 = 真实角度）
 @export var t39_head_turn_dist_m: float
 @export var t39a_head_turn_speed_deg: float
 @export var t40_star_enter_kmh: float

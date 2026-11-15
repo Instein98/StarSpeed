@@ -2,26 +2,36 @@ class_name Minimap
 extends SubViewport
 ## 第 5.6 节全息小地图：每帧按前方赛道重建路带网格、摆放摄像机和箭头、设置全息着色器参数。
 ## 路带的形状、弯、坡、区段线、岔路口全部取自 track.gd 的同一张采样表。
-## 场景里的长度都除以预看距离 D，所以摄像机固定不动：自车后方 0.15、上方 0.30，俯视 35°，垂直视野 50°。
+## 场景里的长度都除以预看距离 D，所以摄像机固定不动。
+## 开发者 2026-11-15：要看得出是斜着 45° 往下看的 3D 俯视，而不是从正上方看的平面图。
+## 所以摄像机改成俯视 45°；路带加宽、加了厚度；地面上有一张随车前进而流动的网格，透视感主要靠它。
 
-const MAP_SIZE := Vector2i(220, 115)
-const CAM_BACK := 0.15
-const CAM_UP := 0.30
-const CAM_PITCH_DEG := 35.0
+const MAP_SIZE := Vector2i(330, 172)
+const CAM_BACK := 0.22
+const CAM_UP := 0.42
+const CAM_PITCH_DEG := 45.0
 const CAM_FOV := 50.0
-const ROAD_WIDTH := 0.03            ## 路带宽 0.03 D
-const EDGE_WIDTH := 0.0035          ## 边线宽（急弯加粗一倍）
+const ROAD_WIDTH := 0.07            ## 路带宽 0.07 D
+const ROAD_THICK := 0.012           ## 路带的厚度（两侧向下的裙边）
+const GRID_STEP_M := 100.0          ## 地面网格每格 100 m
+const GRID_MIN_STEP := 0.06         ## 网格在小地图里最密到 0.06 D，再密就隔一格画一格
+const GRID_HALF_WIDTH := 0.9
+const GRID_FAR := 1.25
+const GRID_NEAR := 0.1
+const GRID_LINE := 0.004
+const GRID_BRIGHT := 0.22
+const EDGE_WIDTH := 0.007          ## 边线宽（急弯加粗一倍）
 const LINE_WIDTH := 0.006           ## 区段线沿路方向的宽度
 const FILL_OPACITY := 0.25          ## 金黄填充 25% 不透明度（加色叠加时等于 25% 亮度）
 const FADE_TAIL := 0.15             ## 最远的 15% 渐隐
 const HEIGHT_SCALE := 3.0           ## 坡道按真实高度的 3 倍画
 const LOOK_SMOOTH := 0.5
 const TRUE_ROAD_WIDTH := 12.0
-const ARROW_LENGTH := 0.07
-const ARROW_WIDTH := 0.05
-const ARROW_THICK := 0.012
+const ARROW_LENGTH := 0.10
+const ARROW_WIDTH := 0.07
+const ARROW_THICK := 0.02
 ## 按 5.6 的摄像机参数，自车所在的原点刚好落在画面下缘之外，所以箭头整体往前挪了这么多
-const ARROW_FORWARD := 0.035
+const ARROW_FORWARD := 0.0
 const STRUGGLE_BLINK_HZ := 10.0
 
 const COL_GOLD := Color("ffc93c")
@@ -86,6 +96,7 @@ func _process(delta: float) -> void:
 	var route := track.route_ahead(here[0], here[1], d, car.exit_armed, car.from_access)
 	var verts := PackedVector3Array()
 	var colors := PackedColorArray()
+	_add_grid(verts, colors, d)
 	var main_pts := _localize(route["main"], to_local, d)
 	_add_ribbon(verts, colors, main_pts, route["sharp"], float(route["step"]) / d, true)
 	var branch: PackedVector3Array = route["branch"]
@@ -146,6 +157,12 @@ func _add_ribbon(verts: PackedVector3Array, colors: PackedColorArray, pts: Packe
 		var b := pts[i + 1]
 		_quad(verts, colors, a - sa * half, a + sa * half, b - sb * half, b + sb * half,
 				COL_GOLD * FILL_OPACITY * fa, COL_GOLD * FILL_OPACITY * fb)
+		# 厚度：两侧各一条向下的裙边，颜色暗一级
+		var drop := Vector3(0.0, -ROAD_THICK, 0.0)
+		for skirt: float in [-1.0, 1.0]:
+			_quad(verts, colors, a + sa * skirt * half + drop, a + sa * skirt * half,
+					b + sb * skirt * half + drop, b + sb * skirt * half,
+					COL_GOLD * 0.45 * fa, COL_GOLD * 0.45 * fb)
 		var is_sharp := i < sharp.size() and sharp[i] == 1
 		var w := EDGE_WIDTH * (2.0 if is_sharp else 1.0)
 		for side: float in [-1.0, 1.0]:
@@ -153,6 +170,30 @@ func _add_ribbon(verts: PackedVector3Array, colors: PackedColorArray, pts: Packe
 					a + sa * side * (half - w) + lift, a + sa * side * half + lift,
 					b + sb * side * (half - w) + lift, b + sb * side * half + lift,
 					COL_GOLD * fa, COL_GOLD * fb)
+
+
+## 地面网格：画在路面下方，随车前进向后流动（每格 GRID_STEP_M 米），越远越暗。
+func _add_grid(verts: PackedVector3Array, colors: PackedColorArray, d: float) -> void:
+	var step := GRID_STEP_M / d
+	while step < GRID_MIN_STEP:
+		step *= 2.0
+	var scroll := fposmod(car.s, step * d) / d
+	var y := -ROAD_THICK - 0.002
+	var half := GRID_LINE * 0.5
+	# 横线（垂直于前进方向）：车往前走，线往后（+Z）流
+	var z := GRID_NEAR - step + scroll
+	while z > -GRID_FAR:
+		var c := COL_SKY * GRID_BRIGHT * clampf(1.0 + z / GRID_FAR, 0.0, 1.0)
+		_quad(verts, colors, Vector3(-GRID_HALF_WIDTH, y, z + half), Vector3(GRID_HALF_WIDTH, y, z + half),
+				Vector3(-GRID_HALF_WIDTH, y, z - half), Vector3(GRID_HALF_WIDTH, y, z - half), c, c)
+		z -= step
+	# 纵线（沿前进方向）：近处亮，远处暗
+	var x := -floorf(GRID_HALF_WIDTH / step) * step
+	while x <= GRID_HALF_WIDTH + 0.0001:
+		_quad(verts, colors, Vector3(x - half, y, GRID_NEAR), Vector3(x + half, y, GRID_NEAR),
+				Vector3(x - half, y, -GRID_FAR), Vector3(x + half, y, -GRID_FAR),
+				COL_SKY * GRID_BRIGHT, COL_SKY * 0.0)
+		x += step
 
 
 func _fade(dist: float, fade_tail: bool, total: float) -> float:

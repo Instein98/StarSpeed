@@ -360,7 +360,9 @@ func _update_grip(dt: float, judge: bool, snap: bool) -> void:
 		if need > grip:
 			lat_vel += signf(kappa) * (need - grip) * dt
 		else:
-			var target := -lat / maxf(t.slide_return_time, 0.01)
+			# 回原路线是车打方向开回去的，所以横向速度不会超过 车速 × tan(最大回线角)：车慢回得也慢
+			var max_return := v * tan(deg_to_rad(t.slide_return_max_angle_deg))
+			var target := clampf(-lat / maxf(t.slide_return_time, 0.01), -max_return, max_return)
 			lat_vel = move_toward(lat_vel, target, (grip - need) * dt)
 		lat += lat_vel * dt
 		if need <= grip and absf(lat) < SLIDE_EPS and absf(lat_vel) < 0.2:

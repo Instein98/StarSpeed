@@ -15,7 +15,7 @@ const FAIL_BLOW_DECEL_G := 2.0    ## 爆缸后车速按 2 g 下降
 const WHITE_FRAMES := 2
 const EXIT_LOCK_DISTANCE := 100.0 ## R-41：距岔路口不足 100 m 时驶出开关锁定
 const WORLD_AUDIO_DIR := "res://assets/audio/world/"
-const MINIMAP_VIEW_WIDTH := 0.26  ## 9.5：小地图在锚点处的视宽度相当于 0.26 m
+const MINIMAP_VIEW_WIDTH := 0.42  ## 小地图在锚点处的视宽度（规格 9.5 是 0.26 m；开发者要更明显的 3D 俯视，放大了）
 ## 9.5 给的矩形 (530, 285) – (750, 400) 里，锚点 (0.60, 0, −0.01) 的投影落在自上而下约 73% 处
 const MINIMAP_ANCHOR_V := 0.727
 

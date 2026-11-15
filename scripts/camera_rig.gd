@@ -38,6 +38,7 @@ var _head_limited := 0.0   # 度，正 = 向左转头
 var _head := 0.0
 var _swing := 0.0          # 度，挣扎外甩的幅度
 var _swing_dir := 0.0
+var _return_yaw := 0.0     # 度，救回途中车头朝原路线偏的角度（正 = 向左）
 var _understeer := 0.0     # −1 – 1，正 = 左弯的转向不足
 var _shake_from := Vector2.ZERO
 var _shake_to := Vector2.ZERO
@@ -164,6 +165,12 @@ func _process(delta: float) -> void:
 	_understeer += (u * signf(car.kappa) - _understeer) * _k(delta, t.understeer_smooth_time)
 	_swing = absf(_understeer) * t.t38_struggle_yaw_deg
 	_swing_dir = signf(_understeer)         # 左弯（κ > 0）向左看，即正的偏航
+	# 救回来往原路线开时，车头是朝着原路线偏的（不是整台车横着平移回去）：
+	# 车头方向 = 赛道方向再转 atan(横向速度 ÷ 车速)。只在往回开的时候算；向外滑时车头并没有指向外侧。
+	var heading_target := 0.0
+	if car.lat * car.lat_vel < 0.0 and car.v > 1.0:
+		heading_target = -rad_to_deg(atan2(car.lat_vel, car.v)) * t.slide_return_yaw_gain
+	_return_yaw += (heading_target - _return_yaw) * _k(delta, t.understeer_smooth_time)
 	var lean := -_understeer * t.understeer_roll_deg   # 左弯头向左歪（_roll 的正方向是向右）
 
 	# —— 震动（T-37，7.3）：各来源取最大值，不相加；上下、左右各自独立的随机噪声 ——
@@ -192,7 +199,7 @@ func _process(delta: float) -> void:
 	var roll_jitter := lerpf(_roll_from, _roll_to, _shake_phase) * roll_jitter_amp
 
 	# —— 世界摄像机 ——
-	var yaw := deg_to_rad(_head + _swing * _swing_dir)
+	var yaw := deg_to_rad(_head + _swing * _swing_dir + _return_yaw)
 	var world_basis := base * Basis(Vector3.UP, yaw) \
 			* Basis(Vector3.RIGHT, deg_to_rad(_pitch - nod)) \
 			* Basis(Vector3.BACK, deg_to_rad(-(_roll + lean) + roll_jitter))

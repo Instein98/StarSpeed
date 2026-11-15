@@ -143,7 +143,9 @@ func _initialize() -> void:
 	var slid := false
 	tt = 0.0
 	while fails.is_empty() and tt < 12.0:
-		car.brake = car.slide > 0.5
+		# 车停住就回不了线（回线的横向速度 ≤ 车速 × tan(最大回线角)），所以刹到 80 km/h 就松开
+		car.brake = car.slide > 0.5 and car.v > 80.0 * KMH
+		car.set_throttle(slid and car.v < 70.0 * KMH)
 		if car.brake:
 			slid = true
 		# 保持略超极限的车速直到开始滑
