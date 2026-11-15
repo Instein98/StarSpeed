@@ -58,6 +58,7 @@ var car: CarSim
 var material: ShaderMaterial
 var game_time := 0.0
 ## 爆缸演出中：指针打到表盘尽头并卡住，换挡提示灯常亮（7.3）
+const BLOWN_SWEEP_RPM_PER_SEC := 7000.0
 var blown := false
 
 var _needle_rpm := 0.0
@@ -112,8 +113,9 @@ func _process(delta: float) -> void:
 	# 指针：平时显示 0.04 秒平滑的 rpm；换挡扫动和断油抖动直接驱动（5.2、R-08）
 	var shown := 0.0
 	if blown:
-		shown = RPM_MAX
-		_needle_rpm = RPM_MAX
+		# 爆缸：指针很快地扫到尽头卡住（不是瞬移），速度和引擎声的转速扫动一致
+		_needle_rpm = move_toward(_needle_rpm, RPM_MAX, BLOWN_SWEEP_RPM_PER_SEC * delta)
+		shown = _needle_rpm
 	elif car.shifting:
 		shown = lerpf(car.shift_rpm_from, car.rpm, car.shift_progress)
 		_needle_rpm = shown
