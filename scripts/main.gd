@@ -15,7 +15,7 @@ const FAIL_BLOW_DECEL_G := 2.0    ## 爆缸后车速按 2 g 下降
 const WHITE_FRAMES := 2
 const EXIT_LOCK_DISTANCE := 100.0 ## R-41：距岔路口不足 100 m 时驶出开关锁定
 const WORLD_AUDIO_DIR := "res://assets/audio/world/"
-const MINIMAP_VIEW_WIDTH := 0.42  ## 小地图在锚点处的视宽度（规格 9.5 是 0.26 m；开发者要更明显的 3D 俯视，放大了）
+const MINIMAP_VIEW_WIDTH := 0.26  ## 9.5：小地图在锚点处的视宽度相当于 0.26 m
 ## 9.5 给的矩形 (530, 285) – (750, 400) 里，锚点 (0.60, 0, −0.01) 的投影落在自上而下约 73% 处
 const MINIMAP_ANCHOR_V := 0.727
 
@@ -70,6 +70,11 @@ var _fail_speed := 0.0
 var _fail_pre_time := FAIL_PRE_TIME
 var _sfx: Dictionary = {}
 var _cube_colors: Array[Color] = []
+# 区段计时：过了区段起点线开始计，过终点线时把用时显示在右上角，直到下一个区段跑完
+var _timing_section := -1
+var _section_time := 0.0
+var _prev_main_s := -1.0
+var _time_label: Label
 
 
 func _ready() -> void:
@@ -96,12 +101,25 @@ func _ready() -> void:
 	overlay.set("car", car)
 	overlay.set("track", track)
 	overlay.visible = false
-	for sfx_name: String in ["crash", "explosion", "engine_blow"]:
+	for sfx_name: String in ["crash", "explosion"]:   # 爆缸前的那一声"噔"按开发者要求去掉了，直接炸
 		var player := AudioStreamPlayer.new()
 		player.stream = EngineAudio.load_stream(WORLD_AUDIO_DIR + sfx_name + ".wav", false)
 		player.bus = &"SFX"
 		$Audio.add_child(player)
 		_sfx[sfx_name] = player
+	_time_label = exit_hint.duplicate() as Label
+	_time_label.name = "SectionTime"
+	_time_label.text = ""
+	_time_label.visible = true
+	_time_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_time_label.add_theme_font_size_override("font_size", 20)
+	_time_label.add_theme_color_override("font_color", Color("f7ecd4"))
+	_time_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_time_label.offset_left = -420.0
+	_time_label.offset_right = -24.0
+	_time_label.offset_top = 20.0
+	_time_label.offset_bottom = 48.0
+	exit_hint.get_parent().add_child(_time_label)
 	car.place(Track.PATH_ACCESS, 0.0, 0.0, 1, true)
 
 
@@ -126,6 +144,7 @@ func _physics_process(delta: float) -> void:
 	if car.path_id == Track.PATH_MAIN and car.s >= track.length(Track.PATH_MAIN) - 0.01:
 		car.set_exit_armed(false)
 		car.place(Track.PATH_ACCESS, 0.0, 0.0, 1, true)
+	_update_section_timer(delta)
 	# 爆缸演出的前 0.4 秒：车还在赛道上，车速按 2 g 下降
 	if _fail_phase == FailPhase.PRE and _fail_kind != CarSim.Fail.OFF_TRACK:
 		car.v = maxf(0.0, car.v - FAIL_BLOW_DECEL_G * CarSim.G * delta)
@@ -145,6 +164,32 @@ func _process(delta: float) -> void:
 		fullscreen_fade.color = Color(1.0, 1.0, 1.0, _flash)
 	vignette.material.set("shader_parameter/amount", car.slide_frac)
 	_update_exit_hint()
+
+
+# ───────────────────────── 区段计时 ─────────────────────────
+
+func _update_section_timer(delta: float) -> void:
+	if car.path_id != Track.PATH_MAIN:
+		_timing_section = -1
+		_prev_main_s = -1.0
+		return
+	if _timing_section >= 0:
+		_section_time += delta           # 失败演出和复位的时间也算在内
+	var s := car.s
+	if _prev_main_s >= 0.0 and s > _prev_main_s:
+		for i in track.gate_s.size():
+			var gate: float = track.gate_s[i]
+			if _prev_main_s < gate and s >= gate:
+				if _timing_section == i - 1 and i >= 1:
+					_time_label.text = "%s  %s" % [track.section_names[i - 1], _format_time(_section_time)]
+				_timing_section = i if i < track.gate_s.size() - 1 else -1
+				_section_time = 0.0
+	_prev_main_s = s
+
+
+static func _format_time(seconds: float) -> String:
+	var whole := int(seconds)
+	return "%d:%02d.%02d" % [whole / 60, whole % 60, int((seconds - whole) * 100.0)]
 
 
 # ───────────────────────── 驶出开关（R-41，临时：标志牌和提示音在阶段 5） ─────────────────────────
@@ -196,7 +241,6 @@ func _on_car_failed(kind: int) -> void:
 			# 失败 2：断油声已经响了一阵，直接爆响，0.4 秒后大爆炸
 			_fail_pre_time = FAIL_PRE_TIME
 			_red_frames = 1
-			_play_sfx("engine_blow")
 
 
 func _update_fail_sequence(delta: float) -> void:
@@ -213,7 +257,6 @@ func _update_fail_sequence(delta: float) -> void:
 			_play_sfx("crash")
 		elif _fail_kind == CarSim.Fail.DOWNSHIFT:
 			_red_frames = 1
-			_play_sfx("engine_blow")
 		_play_sfx("explosion")
 		_set_drive_audio_muted(true)   # 10.5：爆炸播放时引擎、轮胎静音
 	elif _fail_phase == FailPhase.BOOM:
@@ -313,8 +356,11 @@ func _jump_to_next_section() -> void:
 	var next := 0
 	if car.path_id == Track.PATH_MAIN:
 		next = (track.section_index_at(car.s) + 1) % track.section_names.size()
-	car.place(Track.PATH_MAIN, track.section_start[next],
+	# 放在区段起点线前 1 m，这样过线时计时正常开始
+	car.place(Track.PATH_MAIN, maxf(track.gate_s[next] - 1.0, 0.0),
 			t.t54_entry_speed_kmh[next] * CarSim.KMH, t.t54_entry_gear[next])
+	_timing_section = -1
+	_prev_main_s = -1.0
 
 
 ## 第 12 节阶段 2：路两侧的彩色测试方块（阶段 9 删除）。

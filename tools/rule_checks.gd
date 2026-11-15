@@ -40,11 +40,12 @@ func _initialize() -> void:
 	check("环道全长 1629", absf(track.length(1) - 1629.0) < 3.0, "%.1f" % track.length(1))
 	check("环道闭合回 (0,300)", lt.origin.distance_to(Vector3(0, 0, -300)) < 0.05, str(lt.origin))
 	check("岔路口里程 400", absf(track.fork_s - 400.0) < 0.01)
-	# 2026-11-14 加长直道、冰原改成连续高速弯之后的长度（规格原值是 5378 / 11885 / 17527 / 18127）
-	var exp := [0.0, 6877.5, 22380.1, 29320.8]
+	# 2026-11-15 按"8 档 8500 转 = 680 km/h、每个区段只有一处能到极速"重新定的长度
+	# （规格原值是 5378 / 11885 / 17527 / 18127）
+	var exp := [0.0, 6607.5, 13326.8, 20257.5]
 	for i in 4:
 		check("区段线 %d" % i, absf(track.section_start[i] - exp[i]) < 3.0, "%.1f" % track.section_start[i])
-	check("主赛道含尾段全长", absf(track.length(2) - 29920.8) < 3.0, "%.1f" % track.length(2))
+	check("主赛道含尾段全长", absf(track.length(2) - 20857.5) < 3.0, "%.1f" % track.length(2))
 	var min_h := 1e9
 	var max_h := -1e9
 	var s := 0.0
@@ -164,18 +165,18 @@ func _initialize() -> void:
 	car.shift_denied.connect(func(): denied[0] += 1)
 	car.request_shift(false)
 	check("1 档降档被拒绝", denied[0] == 1 and car.gear == 1)
-	car.place(2, 100.0, 300.0 * KMH, 9)
+	car.place(2, 100.0, 300.0 * KMH, 8)
 	car.request_shift(true)
-	check("9 档升档被拒绝", denied[0] == 2 and car.gear == 9)
+	check("8 档升档被拒绝", denied[0] == 2 and car.gear == 8)
 	car.place(2, 100.0, 100.0 * KMH, 3)
 	car.request_shift(true)
 	car.request_shift(true)   # 换挡中再按：缓存 1 次
 	for n in 60:
 		car.step(DT)
 	check("R-07 缓存一次换挡", car.gear == 5, "档位 %d" % car.gear)
-	# 9 档到极速：不断油、不爆缸，车速停在 top_speed
+	# 8 档到极速（8500 转）：不断油、不爆缸，车速停在 top_speed
 	fails.clear()
-	car.place(2, 3000.0, 700.0 * KMH, 9)
+	car.place(2, 3000.0, 640.0 * KMH, 8)
 	car.set_throttle(true)
 	var lim9 := false
 	for n in 1200:
@@ -183,7 +184,7 @@ func _initialize() -> void:
 		lim9 = lim9 or car.limiter_active
 		if car.path_id != 2 or not fails.is_empty():
 			break
-	check("9 档极速：不断油、不爆缸", fails.is_empty() and not lim9 and car.v / KMH <= T.top_speed_kmh + 0.5 and car.v / KMH > T.top_speed_kmh - 15.0,
+	check("8 档极速：不断油、不爆缸", fails.is_empty() and not lim9 and car.v / KMH <= T.top_speed_kmh + 0.5 and car.v / KMH > T.top_speed_kmh - 15.0,
 			"%.0f km/h，%d 转" % [car.v / KMH, car.rpm])
 
 	print("== 环道绕圈（保守驾驶 3 圈）==")
@@ -265,7 +266,7 @@ func _drive_section(sec: int) -> void:
 		var want: bool = car.v < cap[i]
 		car.set_throttle(want)
 		if not car.shifting:
-			if want and car.rpm >= T.t06_best_shift_rpm and car.gear < 9:
+			if want and car.rpm >= T.t06_best_shift_rpm and car.gear < 8:
 				car.request_shift(true)
 			elif not want and car.gear > 1 and car.rpm_for(car.v, car.gear - 1) <= 8600.0:
 				car.request_shift(false)
@@ -275,11 +276,11 @@ func _drive_section(sec: int) -> void:
 		t += DT
 		vmax = maxf(vmax, car.v)
 		max_ratio = maxf(max_ratio, car.ratio)
-		if car.gear == 9 and car.limiter_active:
+		if car.gear == 8 and car.limiter_active:
 			limiter8 = true
 	var name: String = track.section_names[sec]
 	check("%s：跑完且无失败" % name, fails.is_empty() and car.s >= s1,
 			"用时 %.1f 秒，最高 %d km/h，最大 ratio %.3f%s" % [t, roundi(vmax / KMH), max_ratio,
 			"" if fails.is_empty() else "，失败 %s 于 %s" % [str(car.last_fail), track.segment_label_at(2, car.s)]])
-	check("%s：9 档没到断油（R-47）" % name, not limiter8)
+	check("%s：8 档没到断油（R-47）" % name, not limiter8)
 	check("%s：最高车速 ≥ 350 km/h（R-45）" % name, vmax / KMH >= 350.0)

@@ -19,6 +19,12 @@ const EDGE_LINE_OUTER := 5.5
 const CENTER_LINE_HALF := 0.125
 const DASH_LENGTH := 6
 const DASH_PERIOD := 18        ## 6 m 实线 + 12 m 间隔
+## 区段的起终点线（地面上的黑白棋盘格带）。森林的起点线不放在岔路口，往后挪到主赛道 150 m 处，
+## 这样它只在主赛道上、离车库也远一些；其余三条在区段交界处。
+const START_LINE_S := 150.0
+const CHECKER_ROWS := 6
+const CHECKER_SQUARE := 1.0
+const COL_CHECKER_DARK := Color("1b2233")
 const LINE_LIFT := 0.005       ## 车道线抬高一点，避免与重叠的路面共面闪烁
 const JUNCTION_CLEAR := 9.0    ## 距主直道中心线 9 m 之内，另一条路不画车道线
 const MAIN_STRAIGHT_Y_MAX := 1000.0  ## 主直道 P1 + L1 + F1：x = 0，y 从 0 到 1000
@@ -32,7 +38,7 @@ const GROUND_STEP := 20
 const GROUND_OVERLAP := 150.0
 const SECTION_GROUND_Y: Array[float] = [-0.05, -0.10, -0.15]
 const LAKE_Y := -0.03
-const LAKE_SEG_LABEL := "I11"   ## 冰原最长的直道在冰湖上
+const LAKE_SEG_LABEL := "I18"
 
 const COL_ROAD := Color("4a5262")
 const COL_ROAD_DARK := Color("363d4b")
@@ -68,6 +74,7 @@ class PathTable:
 
 var _pt: Array[PathTable] = []
 var fork_s := 0.0
+var gate_s := PackedFloat64Array()          ## 区段起终点线的里程：森林起点、森林/冰原、冰原/城市、城市终点
 var section_start := PackedFloat64Array()   ## 主赛道区段线里程，共 区段数 + 1 项
 var section_names := PackedStringArray()
 
@@ -88,6 +95,7 @@ func build() -> void:
 	for c in main_data.section_seg_counts:
 		seg += c
 		section_start.append(_pt[PATH_MAIN].seg_start[seg])
+	gate_s = PackedFloat64Array([START_LINE_S, section_start[1], section_start[2], section_start[3]])
 	if is_inside_tree() and road_mesh != null:
 		_build_meshes()
 
@@ -389,6 +397,8 @@ func _build_meshes() -> void:
 	var rc := PackedColorArray()
 	for p in 3:
 		_build_road(p, rv, rc)
+	for line_s in gate_s:
+		_build_checker(line_s, rv, rc)
 	road_mesh.mesh = _make_mesh(rv, rc)
 
 	var gv := PackedVector3Array()
@@ -431,6 +441,23 @@ func _quad(v: PackedVector3Array, c: PackedColorArray, a: Vector3, b: Vector3, d
 	v.append(a); v.append(e); v.append(d)
 	for _i in 6:
 		c.append(col)
+
+
+## 横跨整个路面的黑白棋盘格带，CHECKER_ROWS 排，每格 CHECKER_SQUARE 米见方。
+func _build_checker(line_s: float, v: PackedVector3Array, c: PackedColorArray) -> void:
+	var up := Vector3(0.0, LINE_LIFT * 2.0, 0.0)
+	var cols := int(ROAD_HALF_WIDTH * 2.0 / CHECKER_SQUARE)
+	for row in CHECKER_ROWS:
+		var xa := transform_at(PATH_MAIN, line_s + row * CHECKER_SQUARE)
+		var xb := transform_at(PATH_MAIN, line_s + (row + 1) * CHECKER_SQUARE)
+		var ra := right_at(PATH_MAIN, line_s + row * CHECKER_SQUARE)
+		var rb := right_at(PATH_MAIN, line_s + (row + 1) * CHECKER_SQUARE)
+		for col in cols:
+			var l := -ROAD_HALF_WIDTH + col * CHECKER_SQUARE
+			var r := l + CHECKER_SQUARE
+			var color := COL_CENTER if (row + col) % 2 == 0 else COL_CHECKER_DARK
+			_quad(v, c, xa.origin + ra * l + up, xa.origin + ra * r + up,
+					xb.origin + rb * l + up, xb.origin + rb * r + up, color)
 
 
 func _road_half(path_id: int, s: float) -> float:
@@ -550,7 +577,7 @@ func route_ahead(path_id: int, s: float, dist: float, exit_armed := false, from_
 			var prev_s: float = prev[1]
 			if p == PATH_MAIN:
 				var from_s := prev_s if prev_p == PATH_MAIN else -1.0
-				for line_s in section_start:
+				for line_s in gate_s:
 					if line_s > from_s and line_s <= ls:
 						lines.append(d - (ls - line_s))
 			# 岔路口：画出没走的那一支

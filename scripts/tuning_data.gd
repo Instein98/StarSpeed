@@ -21,7 +21,7 @@ extends Resource
 @export var t13_coast_knee_rpm: float                    ## T-13/T-14 之间的拐点（规格初始 6000）
 @export var t14_coast_decel_max_g: float
 @export var t15_downshift_speed_loss: float
-## 极速（开发者 2026-11-14：加第 9 档，游戏里的最高车速是 9 档 6500 转左右）。
+## 极速（开发者 2026-11-15：没有第 9 档，游戏里的最高车速是 8 档 8500 转 = 680 km/h）。
 ## 离极速不到 top_speed_taper_kmh 时驱动加速度线性减到 0。
 @export var top_speed_kmh: float
 @export var top_speed_taper_kmh: float
