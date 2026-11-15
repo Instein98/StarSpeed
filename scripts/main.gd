@@ -205,7 +205,6 @@ func _update_section_timer(delta: float) -> void:
 			var gate: float = track.gate_s[i]
 			if _prev_main_s < gate and s >= gate:
 				if _timing_section == i - 1 and i >= 1:
-					_time_label.text = "%s  %s" % [track.section_names[i - 1], _format_time(_section_time)]
 					flow.section_done(i - 1, _section_time)
 				_timing_section = i if i < track.gate_s.size() - 1 else -1
 				_section_time = 0.0

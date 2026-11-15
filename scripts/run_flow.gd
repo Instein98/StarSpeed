@@ -14,6 +14,9 @@ const GRID := Vector2(960.0, 540.0)
 const COL_TEXT := Color("f7ecd4")
 const COL_GOLD := Color("ffc93c")
 const COL_DIM := Color("8a93a3")
+## 历史最好成绩的时间一律用紫色显示（右上角、结算），名字保持正常颜色
+const COL_RECORD := Color("c77dff")
+const RECENT_COUNT := 3
 const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
 const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
 const PAUSE_OPTIONS: Array[String] = ["继续", "回大本营", "退出游戏"]
@@ -22,6 +25,9 @@ var state := State.BASE
 var paused := false
 var section_times: Array[float] = [-1.0, -1.0, -1.0]   ## 本局各区段用时，−1 = 没有
 var new_record := false
+var section_records: Array[bool] = [false, false, false]   ## 本局各区段是否刷新了历史最好
+## 右上角显示的最近 3 个区段成绩：{name, time, record}，新的在下面；跨局保留
+var recent: Array[Dictionary] = []
 
 var _main: Node
 var _car: CarSim
@@ -53,6 +59,7 @@ func enter_base() -> void:
 	state = State.BASE
 	_select = 0
 	section_times = [-1.0, -1.0, -1.0]
+	section_records = [false, false, false]
 	new_record = false
 	_car.use_device_input = true
 	_car.set_exit_armed(false)
@@ -74,6 +81,7 @@ func _leave_base() -> void:
 func debug_enter_run() -> void:
 	if state != State.RUN:
 		section_times = [-1.0, -1.0, -1.0]
+		section_records = [false, false, false]
 	state = State.RUN
 	_car.use_device_input = true
 	_update_hint()
@@ -84,6 +92,17 @@ func section_done(index: int, seconds: float) -> void:
 	if state != State.RUN or index < 0 or index >= section_times.size():
 		return
 	section_times[index] = seconds
+	# 是否刷新了这个区段的历史最好；刷新了就立刻存档
+	var best_sections: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
+	var record := float(best_sections[index]) < 0.0 or seconds < float(best_sections[index])
+	section_records[index] = record
+	if record:
+		best_sections[index] = seconds
+		SaveData.data["best_sections"] = best_sections
+		SaveData.save()
+	recent.append({"name": _track.section_names[index], "time": seconds, "record": record})
+	while recent.size() > RECENT_COUNT:
+		recent.pop_front()
 	if index == section_times.size() - 1:
 		_finish_run()
 
@@ -96,12 +115,6 @@ func _finish_run() -> void:
 	_car.brake = true
 	new_record = false
 	var complete := not section_times.has(-1.0)
-	var best_sections: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
-	for i in section_times.size():
-		var mine: float = section_times[i]
-		if mine >= 0.0 and (float(best_sections[i]) < 0.0 or mine < float(best_sections[i])):
-			best_sections[i] = mine
-	SaveData.data["best_sections"] = best_sections
 	if complete:
 		var total := total_time()
 		var best_total := float(SaveData.data.get("best_total", -1.0))
@@ -183,6 +196,8 @@ func _draw() -> void:
 		_draw_menu("大本营", BASE_OPTIONS, _select, "↑ ↓ 选择    回车 出发", _best_lines())
 	elif state == State.RESULTS:
 		_draw_results()
+	if not paused and state != State.BASE:
+		_draw_recent()
 
 
 func _draw_menu(title: String, options: Array[String], selected: int, footer: String, extra: Array) -> void:
@@ -216,28 +231,44 @@ func _best_lines() -> Array:
 	return lines
 
 
+## 右上角：最近 3 个区段的成绩，新的在下面；刷新历史最好的时间用紫色。
+func _draw_recent() -> void:
+	var y := 34.0
+	for item in recent:
+		_text_right(str(item["name"]), GRID.x - 24.0 - 96.0, y, 16, COL_TEXT)
+		_text_right(format_time(float(item["time"])), GRID.x - 24.0, y, 16, COL_RECORD if item["record"] else COL_TEXT)
+		y += 22.0
+
+
 func _draw_results() -> void:
 	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
 	_text_center("完成", 130.0, 34, COL_TEXT)
-	var best_sections: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
 	var y := 195.0
 	for i in section_times.size():
 		var mine: float = section_times[i]
-		var text := "%s    %s" % [_track.section_names[i], format_time(mine) if mine >= 0.0 else "—"]
-		var is_best := mine >= 0.0 and is_equal_approx(mine, float(best_sections[i]))
-		_text_center(text + ("    区段最好" if is_best else ""), y, 18, COL_GOLD if is_best else COL_TEXT)
+		_text_pair(_track.section_names[i], format_time(mine), y, 18, COL_RECORD if section_records[i] else COL_TEXT)
 		y += 30.0
 	y += 12.0
 	if section_times.has(-1.0):
 		_text_center("没有跑完整三个区段，不计总成绩", y, 14, COL_DIM)
 	else:
-		_text_center("总用时    %s" % format_time(total_time()), y, 24, COL_GOLD if new_record else COL_TEXT)
+		_text_pair("总用时", format_time(total_time()), y, 24, COL_RECORD if new_record else COL_TEXT)
 		y += 34.0
-		if new_record:
-			_text_center("新纪录", y, 16, COL_GOLD)
-		else:
-			_text_center("最好成绩  %s" % format_time(float(SaveData.data.get("best_total", -1.0))), y, 14, COL_DIM)
+		if not new_record:
+			_text_pair("最好成绩", format_time(float(SaveData.data.get("best_total", -1.0))), y, 14, COL_DIM, COL_DIM)
+	_text_center("紫色 = 历史最好", 440.0, 11, COL_RECORD)
 	_text_center("回车：回大本营", 470.0, 12, COL_DIM)
+
+
+## 居中的一行"名字  时间"：名字在中线左边右对齐，时间在中线右边左对齐，两者颜色分开。
+func _text_pair(label: String, value: String, y: float, font_size: int, value_color: Color, label_color := COL_TEXT) -> void:
+	var mid := GRID.x * 0.5
+	draw_string(_font, Vector2(0.0, y), label, HORIZONTAL_ALIGNMENT_RIGHT, mid - 14.0, font_size, label_color)
+	draw_string(_font, Vector2(mid + 14.0, y), value, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size, value_color)
+
+
+func _text_right(text: String, right_x: float, y: float, font_size: int, color: Color) -> void:
+	draw_string(_font, Vector2(0.0, y), text, HORIZONTAL_ALIGNMENT_RIGHT, right_x, font_size, color)
 
 
 func _text_center(text: String, y: float, font_size: int, color: Color) -> void:
