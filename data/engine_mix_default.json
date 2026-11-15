@@ -1,0 +1,48 @@
+{
+  "layer_rpm": [
+    2000,
+    3500,
+    5500,
+    8000
+  ],
+  "layer_on_db": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "layer_off_db": [
+    0,
+    0,
+    0,
+    0
+  ],
+  "overlap": 1.0,
+  "pitch_min": 0.5,
+  "pitch_max": 1.6,
+  "on_off_time": 0.08,
+  "off_set_db": 0.0,
+  "limiter_on_duck_db": 0.0,
+  "shift_fade_time": 0.015,
+  "shift_cut_db": 0.0,
+  "limiter_db": 0.0,
+  "limiter_max_semitones": 3.0,
+  "hum_db": -18.0,
+  "hum_pitch_min": 0.5,
+  "hum_pitch_max": 2.0,
+  "wind_db": 0.0,
+  "tire_db": [
+    -8,
+    0,
+    0
+  ],
+  "tire_xfade_time": 0.03,
+  "lowpass_min_hz": 2500,
+  "use_off_set": false,
+  "rpm_gain_min_db": -9.0,
+  "rpm_slew_per_sec": 7000.0,
+  "limiter_gate_hz": 11.0,
+  "limiter_gate_hz_max": 18.0,
+  "limiter_gate_duty": 0.55,
+  "limiter_gate_cut_db": -30.0
+}

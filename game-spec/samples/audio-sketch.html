@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>star-speed 声音草稿</title>
+<style>
+  body { margin: 0; padding: 20px 16px 60px; background: #1b2233; color: #f7ecd4; font-family: "Segoe UI","Microsoft YaHei",sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; } h2 { font-size: 17px; margin: 26px 0 6px; color: #ffc93c; }
+  p { font-size: 14px; line-height: 1.6; margin: 0 0 10px; opacity: .9; }
+  .tag { position: fixed; top: 8px; right: 10px; font-size: 12px; padding: 4px 8px; background: rgba(0,0,0,.65); border-radius: 4px; }
+  button { font: inherit; font-weight: 700; font-size: 14px; padding: 10px 14px; margin: 4px 6px 4px 0; background: #1b2233; color: #f7ecd4; border: 3px solid #f7ecd4; cursor: pointer; box-shadow: 4px 4px 0 #000; }
+  button.on { background: #ffc93c; color: #1b2233; }
+  button.big { background: #ef4a2f; font-size: 16px; }
+  input[type=range] { width: 100%; margin: 8px 0; accent-color: #ffc93c; }
+  .read { font-size: 15px; font-weight: 700; margin: 4px 0; }
+  .box { border: 3px solid #4a5262; padding: 12px; margin-top: 8px; }
+  label { font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="tag">一次性草稿，不是最终音效</div>
+<div class="wrap">
+  <h1>star-speed · 声音草稿</h1>
+  <p>用网页实时合成的粗糙草稿，只用来判断方向：引擎是哪种性格、轮胎声的几个阶段分不分得清。音质比最终游戏差很多。建议戴耳机，先把音量调低。</p>
+  <button class="big" id="start">① 点这里开启声音</button>
+
+  <h2>引擎</h2>
+  <div class="box">
+    <div>
+      <button data-eng="A" class="on">A 高转尖啸型</button>
+      <button data-eng="B">B 低沉轰鸣型</button>
+      <button data-eng="C">C 纯科幻型</button>
+    </div>
+    <div class="read">转速：<span id="rpmv">3000</span> rpm（红线 9000）</div>
+    <input type="range" id="rpm" min="1000" max="9000" value="3000" step="10">
+    <label><input type="checkbox" id="thr" checked> 按住油门（取消勾选 = 松油门）</label>
+    <div style="margin-top:8px">
+      <button id="engToggle">引擎 开 / 关</button>
+      <button id="sweep">自动演示：一路升档到 6 档，再松油连降 3 档</button>
+    </div>
+  </div>
+
+  <h2>轮胎</h2>
+  <div class="box">
+    <p>拖动滑块 = 当前速度相对这个弯"抓地极限"的百分比。各阶段的范围是越来越窄的：第一段 80–92%，第二段 92–97%，第三段 97–100%，挣扎区 100–104%。</p>
+    <div class="read">速度 / 极限：<span id="tv">70</span>%　<span id="ts">（安静）</span></div>
+    <input type="range" id="tire" min="70" max="105" value="70" step="0.1">
+    <div>
+      <button data-t="70">安静</button><button data-t="86">第一段</button><button data-t="94.5">第二段</button><button data-t="98.5">第三段</button><button data-t="102">挣扎区</button>
+    </div>
+  </div>
+  <p style="margin-top:18px">听完告诉我：引擎选 A、B 还是 C（或想混哪两种）；轮胎的几段你能不能闭着眼分出来，哪一段的声音不对。</p>
+</div>
+<script>
+let ctx, master, E, T, engType = 'A', engOn = false, sweeping = null;
+const $ = id => document.getElementById(id);
+function curve(k) { const n = 1024, c = new Float32Array(n); for (let i = 0; i < n; i++) { const x = i * 2 / n - 1; c[i] = k ? (1 + k) * x / (1 + k * Math.abs(x)) : x; } return c; }
+function noiseSrc() { const b = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate), d = b.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; const s = ctx.createBufferSource(); s.buffer = b; s.loop = true; s.start(); return s; }
+function init() {
+  if (ctx) { ctx.resume(); return; }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
+  // 引擎
+  E = { o: [], g: [] };
+  E.out = ctx.createGain(); E.out.gain.value = 0; E.out.connect(master);
+  E.lp = ctx.createBiquadFilter(); E.lp.type = 'lowpass'; E.lp.connect(E.out);
+  E.sh = ctx.createWaveShaper(); E.sh.connect(E.lp);
+  for (let i = 0; i < 4; i++) { const o = ctx.createOscillator(), g = ctx.createGain(); g.gain.value = 0; o.connect(g); g.connect(E.sh); o.start(); E.o.push(o); E.g.push(g); }
+  E.ng = ctx.createGain(); E.ng.gain.value = 0; E.hp = ctx.createBiquadFilter(); E.hp.type = 'highpass'; E.hp.frequency.value = 2500;
+  noiseSrc().connect(E.hp); E.hp.connect(E.ng); E.ng.connect(E.lp);
+  // 轮胎
+  T = {};
+  T.out = ctx.createGain(); T.out.gain.value = 0; T.out.connect(master);
+  T.trem = ctx.createGain(); T.trem.gain.value = 1; T.trem.connect(T.out);
+  T.lfo = ctx.createOscillator(); T.lfoG = ctx.createGain(); T.lfoG.gain.value = 0; T.lfo.connect(T.lfoG); T.lfoG.connect(T.trem.gain); T.lfo.start();
+  T.bp = ctx.createBiquadFilter(); T.bp.type = 'bandpass'; T.bp.connect(T.trem); noiseSrc().connect(T.bp);
+  T.o1 = ctx.createOscillator(); T.o2 = ctx.createOscillator(); T.o1.type = T.o2.type = 'sawtooth'; T.og = ctx.createGain(); T.og.gain.value = 0;
+  T.o1.connect(T.og); T.o2.connect(T.og); T.og.connect(T.trem); T.o1.start(); T.o2.start();
+  $('start').textContent = '声音已开启'; $('start').classList.remove('big');
+  setEngine(); setTire();
+}
+const set = (p, v, t = 0.03) => p.setTargetAtTime(v, ctx.currentTime, t);
+function setEngine() {
+  if (!ctx) return;
+  const rpm = +$('rpm').value, n = (rpm - 1000) / 8000, f = rpm / 30, on = $('thr').checked;
+  $('rpmv').textContent = Math.round(rpm);
+  let types, freqs, gains, cut, dist, noise;
+  if (engType === 'A') { types = ['sawtooth', 'square', 'sawtooth', 'sine']; freqs = [f, f / 2, f * 2, f * 6]; gains = [0.5, 0.25, 0.1 + 0.35 * n, 0.03 + 0.07 * n]; cut = 500 + 7500 * Math.pow(n, 1.5); dist = 20; noise = 0.02 + 0.06 * n; }
+  if (engType === 'B') { types = ['sawtooth', 'square', 'sawtooth', 'sine']; freqs = [f / 2, f / 4, f, f]; gains = [0.6, 0.5, 0.15, 0]; cut = 250 + 1500 * n; dist = 60; noise = 0.02; }
+  if (engType === 'C') { types = ['triangle', 'sine', 'sine', 'sine']; freqs = [f, f * 4, f * 6.03, f * 12]; gains = [0.3, 0.2, 0.04 + 0.12 * n, 0.03]; cut = 2000 + 9000 * n; dist = 0; noise = 0.05 + 0.25 * n; }
+  E.sh.curve = curve(dist);
+  E.o.forEach((o, i) => { o.type = types[i]; set(o.frequency, freqs[i], 0.02); set(E.g[i].gain, gains[i] * 0.5); });
+  set(E.lp.frequency, on ? cut : cut * 0.45); set(E.ng.gain, noise);
+  set(E.out.gain, engOn ? (on ? 0.55 + 0.35 * n : 0.3 + 0.15 * n) : 0, 0.05);
+}
+function setTire() {
+  if (!ctx) return;
+  const x = +$('tire').value; $('tv').textContent = x.toFixed(1);
+  let name, g = 0, bf = 300, q = 1, tr = 0, trf = 8, of = 900, og = 0, det = 1;
+  if (x < 80) name = '（安静）';
+  else if (x < 92) { name = '第一段：低沉的摩擦声'; g = 0.5 + 0.5 * (x - 80) / 12; bf = 320; q = 1.2; }
+  else if (x < 97) { name = '第二段：持续的吱吱声'; g = 1.2; bf = 950; q = 9; of = 950; og = 0.03; det = 1.01; }
+  else if (x <= 100) { name = '第三段：尖锐、发颤的啸叫（最快的过弯状态）'; g = 1.6; bf = 1750; q = 16; tr = 0.3; trf = 9; of = 1750; og = 0.06; det = 1.015; }
+  else { name = '挣扎区：刺耳尖叫，快松油！'; g = 1.4; bf = 2400; q = 2.5; tr = 0.6; trf = 17; of = 2300; og = 0.12; det = 1.08; }
+  $('ts').textContent = name;
+  set(T.bp.frequency, bf, 0.01); set(T.bp.Q, q, 0.01); set(T.out.gain, g ? g : 0, 0.02);
+  set(T.lfo.frequency, trf, 0.01); set(T.lfoG.gain, tr, 0.02);
+  set(T.o1.frequency, of, 0.01); set(T.o2.frequency, of * det, 0.01); set(T.og.gain, og, 0.02);
+}
+$('start').onclick = init;
+$('rpm').oninput = () => { init(); engOn = true; setEngine(); };
+$('thr').onchange = setEngine;
+$('tire').oninput = () => { init(); setTire(); };
+$('engToggle').onclick = () => { init(); engOn = !engOn; setEngine(); };
+document.querySelectorAll('[data-eng]').forEach(b => b.onclick = () => { init(); engType = b.dataset.eng; engOn = true; document.querySelectorAll('[data-eng]').forEach(x => x.classList.toggle('on', x === b)); setEngine(); });
+document.querySelectorAll('[data-t]').forEach(b => b.onclick = () => { init(); $('tire').value = b.dataset.t; setTire(); });
+$('sweep').onclick = () => {
+  init(); engOn = true; if (sweeping) clearInterval(sweeping);
+  let rpm = 2500, gear = 1, phase = 'up', hold = 0; $('thr').checked = true;
+  sweeping = setInterval(() => {
+    if (phase === 'up') {
+      rpm += 150 / gear + 25;
+      if (rpm >= 8300) { if (gear >= 6) { phase = 'lift'; $('thr').checked = false; hold = 25; } else { gear++; rpm = 5600; } }
+    } else if (phase === 'lift') {
+      rpm -= 22; if (--hold <= 0) { if (gear <= 3) { phase = 'end'; hold = 50; } else { gear--; rpm = Math.min(8900, rpm + 2600); hold = 28; } }
+    } else { rpm -= 30; if (--hold <= 0) { clearInterval(sweeping); sweeping = null; } }
+    $('rpm').value = Math.max(1000, rpm); setEngine();
+  }, 30);
+};
+</script>
+</body>
+</html>

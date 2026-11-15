@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="TrackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/track_data.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+path_name = "出库路"
+start = Vector2(0, 0)
+heading_deg = 0.0
+closed = false
+seg_label = PackedStringArray("P1")
+seg_type = PackedInt32Array(0)
+seg_radius = PackedFloat32Array(0)
+seg_angle_deg = PackedFloat32Array(0)
+seg_length = PackedFloat32Array(300)
+seg_grade_pct = PackedFloat32Array(0)

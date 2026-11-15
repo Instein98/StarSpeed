@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>star-speed 风格样张</title>
+<style>
+  body { margin: 0; padding: 20px 16px 40px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  p.desc { margin: 0 0 16px; font-size: 14px; line-height: 1.6; }
+  .tag { position: fixed; top: 8px; right: 10px; font-size: 12px; padding: 4px 8px; background: rgba(0,0,0,.65); color: #fff; border-radius: 4px; z-index: 9; }
+  .pal { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .sw { flex: 1 1 120px; height: 64px; border-radius: 6px; display: flex; flex-direction: column; justify-content: flex-end; padding: 6px 8px; font-size: 12px; box-shadow: 0 0 0 1px rgba(128,128,128,.4); }
+  svg { display: block; width: 100%; height: auto; border-radius: 6px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .cap { font-size: 12px; margin-top: 4px; opacity: .8; }
+</style>
+</head>
+<body>
+<div class="tag">一次性样张，不是最终美术</div>
+<div class="wrap" id="app"></div>
+<script>
+const PICK = 'A';
+const THEMES = {
+  A: {
+    name: 'A · 赛璐璐漫画', desc: '高饱和的纯色块，粗黑墨线勾边，硬边两段式明暗。速度线是白色的墨迹笔触。形状夸张、棱角分明，像会动的漫画分镜。',
+    page: '#f4ecd8', ink: '#111111', font: '"Arial Black","Microsoft YaHei",sans-serif', bgDark: '#111111',
+    palette: [['墨黑','#111111'],['烈焰红','#e8321e'],['亮黄','#ffd21f'],['天青','#29b6e8'],['草绿','#2fa84f'],['纸白','#f4ecd8']],
+    sky: ['#29b6e8','#bfeaf7'], ground: '#2fa84f', road: '#3a3a44', roadEdge: '#111111', lane: '#ffd21f', treeA: '#1f7a3a', treeB: '#2fa84f', far: '#1b5e7a',
+    cockpit: '#1a1a22', cockpitHi: '#e8321e', wheel: '#111111', hand: '#e8321e', hud: '#ffd21f', tach: '#111111', needle: '#e8321e', streak: '#ffffff',
+    outline: '#111111', ow: 4, wire: false, glow: false, tint: '#ffd21f',
+    env: { forest: ['#bfeaf7','#2fa84f','#1f7a3a','#2fa84f'], ice: ['#bfeaf7','#f4fbff','#29b6e8','#8fd8f2'], city: ['#ffd21f','#3a3a44','#e8321e','#111111'] }
+  },
+  B: {
+    name: 'B · 霓虹线框', desc: '深色背景上只有发光的轮廓线，物体不填色。地面是网格，速度线就是被拉长的光。冷色为主，品红和琥珀做警示色。',
+    page: '#07060f', ink: '#e8e6ff', font: 'Consolas,"Microsoft YaHei",monospace', bgDark: '#07060f',
+    palette: [['深空','#07060f'],['品红','#ff2bd6'],['电青','#19f0ff'],['紫','#7a3cff'],['琥珀','#ffb020'],['冷白','#e8e6ff']],
+    sky: ['#07060f','#2a0f4a'], ground: '#0b0a1a', road: '#0b0a1a', roadEdge: '#19f0ff', lane: '#ff2bd6', treeA: '#19f0ff', treeB: '#7a3cff', far: '#7a3cff',
+    cockpit: '#0d0c1c', cockpitHi: '#ff2bd6', wheel: '#19f0ff', hand: '#e8e6ff', hud: '#ffb020', tach: '#07060f', needle: '#ff2bd6', streak: '#19f0ff',
+    outline: 'none', ow: 0, wire: true, glow: true, tint: '#7a3cff',
+    env: { forest: ['#0b0a1a','#07060f','#19f0ff','#7a3cff'], ice: ['#0b0a1a','#07060f','#e8e6ff','#19f0ff'], city: ['#0b0a1a','#07060f','#ff2bd6','#ffb020'] }
+  },
+  C: {
+    name: 'C · 柔和低多边形', desc: '没有描边，靠切面的明暗两色表现体积。颜色偏柔和，带晨雾一样的渐变天空。安静好看的风景，和夸张的速度形成反差。',
+    page: '#eef1f4', ink: '#2b3440', font: '"Segoe UI","Microsoft YaHei",sans-serif', bgDark: '#2b3440',
+    palette: [['晨雾','#dfe9ee'],['松绿','#4f8a78'],['苔绿','#9cc5a1'],['珊瑚','#f08a6b'],['暖沙','#f3d9b1'],['石墨','#2b3440']],
+    sky: ['#a9cfe0','#f3d9b1'], ground: '#9cc5a1', road: '#5b6672', roadEdge: '#5b6672', lane: '#f3f3ee', treeA: '#4f8a78', treeB: '#6fa890', far: '#b8cdd6',
+    cockpit: '#2b3440', cockpitHi: '#f08a6b', wheel: '#3a4552', hand: '#f3d9b1', hud: '#ffffff', tach: '#1f2730', needle: '#f08a6b', streak: '#ffffff',
+    outline: 'none', ow: 0, wire: false, glow: false, tint: '#f3d9b1',
+    env: { forest: ['#dfe9ee','#9cc5a1','#4f8a78','#6fa890'], ice: ['#dfe9ee','#f6fafc','#a9cfe0','#dfe9ee'], city: ['#f3d9b1','#5b6672','#f08a6b','#2b3440'] }
+  }
+};
+THEMES.D = {
+  name: 'D · A 与 C 合并', desc: 'A 的鲜艳颜色和夸张形状，加上 C 的切面明暗和渐变天空。描边保留但改细，用深蓝黑代替纯黑，画面比 A 柔和、比 C 有劲。',
+  page: '#f2efe6', ink: '#1b2233', font: '"Segoe UI","Microsoft YaHei",sans-serif', bgDark: '#1b2233',
+  palette: [['深蓝黑','#1b2233'],['朱红','#ef4a2f'],['金黄','#ffc93c'],['晴空','#4fb8e6'],['森绿','#2f9e6a'],['暖白','#f7ecd4']],
+  sky: ['#4fb8e6','#f7ecd4'], ground: '#58b97a', road: '#4a5262', roadEdge: '#1b2233', lane: '#ffc93c', treeA: '#23805a', treeB: '#2f9e6a', far: '#6f9fc0',
+  cockpit: '#1b2233', cockpitHi: '#ef4a2f', wheel: '#2a3246', hand: '#ef4a2f', hud: '#ffc93c', tach: '#111827', needle: '#ef4a2f', streak: '#ffffff',
+  outline: '#1b2233', ow: 2, wire: false, glow: false, tint: '#ffc93c',
+  env: { forest: ['#cfe9f5','#58b97a','#23805a','#2f9e6a'], ice: ['#cfe9f5','#f4fbff','#4fb8e6','#a5dcf2'], city: ['#ffc93c','#4a5262','#ef4a2f','#1b2233'] }
+};
+THEMES.E = Object.assign({}, THEMES.D, {
+  name: 'E · 低多边形 + 像素化渲染', desc: '模型和配色与 D 相同，但整个 3D 画面先用较低的分辨率渲染，再放大成清晰的方块像素，颜色压到有限的色板并带抖动网点。低模的棱角被像素颗粒盖住，不显廉价，反而成了风格。',
+  pixel: true
+});
+const T = THEMES[PICK];
+document.body.style.background = T.page;
+document.body.style.color = T.ink;
+document.body.style.fontFamily = T.font;
+
+function sh(c, w) {
+  if (T.wire) return `fill="${T.bgDark}" stroke="${c}" stroke-width="${w || 2}" stroke-linejoin="round"`;
+  const sw = T.outline === 'none' ? 0 : (w === undefined ? T.ow : w);
+  return `fill="${c}" stroke="${T.outline}" stroke-width="${sw}" stroke-linejoin="round"`;
+}
+function tree(x, by, h, a, b) {
+  const w = h * 0.5;
+  let s = `<polygon points="${x},${by - h} ${x - w / 2},${by} ${x + w / 2},${by}" ${sh(a)}/>`;
+  if (T.wire) s += `<line x1="${x}" y1="${by - h}" x2="${x}" y2="${by}" stroke="${b}" stroke-width="1.5"/>`;
+  else s += `<polygon points="${x},${by - h} ${x},${by} ${x + w / 2},${by}" fill="${b}"/>`;
+  return s;
+}
+const G = T.glow ? ' filter="url(#glow)"' : '';
+const DEFS = `<defs>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${T.sky[0]}"/><stop offset="1" stop-color="${T.sky[1]}"/></linearGradient>
+  <radialGradient id="vig" cx="0.5" cy="0.5" r="0.75"><stop offset="0.6" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.5"/></radialGradient>
+  <filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+</defs>`;
+
+function screen() {
+  const vx = 620, vy = 262;
+  let s = `<svg viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg">${DEFS}<g${G}>`;
+  s += `<rect width="960" height="290" fill="url(#sky)"/>`;
+  s += `<polygon points="90,150 140,122 215,128 270,152 235,168 120,168" ${sh('#ffffff')}/><polygon points="700,120 745,100 800,104 850,126 815,138 720,138" ${sh('#ffffff')}/>`;
+  s += `<polygon points="0,262 0,240 120,200 260,240 400,190 560,235 700,180 860,230 960,205 960,262" ${sh(T.far)}/>`;
+  s += `<rect y="262" width="960" height="278" fill="${T.ground}"/>`;
+  if (T.wire) {
+    for (let k = 1; k <= 8; k++) { const y = 262 + 278 * (k / 8) ** 2; s += `<line x1="0" y1="${y}" x2="960" y2="${y}" stroke="${T.treeB}" stroke-width="1" opacity=".6"/>`; }
+    for (let x = -700; x <= 1900; x += 200) s += `<line x1="${vx}" y1="${vy}" x2="${x}" y2="540" stroke="${T.treeB}" stroke-width="1" opacity=".6"/>`;
+  }
+  s += `<path d="M140 540 Q420 330 600 262 L640 262 Q650 360 830 540 Z" ${sh(T.road)} ${T.wire ? `stroke="${T.roadEdge}"` : ''}/>`;
+  s += `<path d="M480 540 Q575 340 620 264" fill="none" stroke="${T.lane}" stroke-width="6" stroke-dasharray="46 34"/>`;
+  for (let i = 6; i >= 0; i--) {
+    const k = 1 / (1 + i * 0.7);
+    s += tree(580 - 520 * k, 262 + 250 * k, 270 * k, T.treeA, T.treeB);
+    s += tree(670 + 330 * k, 262 + 250 * k, 270 * k, T.treeA, T.treeB);
+  }
+  [-172, -163, -154, -146, -30, -20, -10, 163, 171, 179, 8, 16, 150, 28].forEach((d, i) => {
+    const a = d * Math.PI / 180, r1 = 170 + (i % 3) * 40, r2 = 620;
+    s += `<line x1="${vx + Math.cos(a) * r1}" y1="${vy + Math.sin(a) * r1}" x2="${vx + Math.cos(a) * r2}" y2="${vy + Math.sin(a) * r2}" stroke="${T.streak}" stroke-width="${3 + (i % 2) * 3}" stroke-linecap="round" opacity=".75"/>`;
+  });
+  s += `</g>`;
+  s += `<rect width="960" height="540" fill="${T.tint}" opacity=".10"/><rect width="960" height="540" fill="url(#vig)"/>`;
+  // HUD 小地图
+  s += `<g transform="translate(395,292)"${G}><path d="M80 96 V46 Q80 14 112 14 Q144 14 144 46 V62" fill="none" stroke="${T.hud}" stroke-width="6" stroke-linecap="round" opacity=".95"/>
+    <polygon points="70,108 90,108 80,90" fill="${T.hud}"/><text x="156" y="100" font-size="15" fill="${T.hud}" font-family="${T.font.replace(/"/g, "'")}">发卡弯</text></g>`;
+  // 座舱
+  s += `<path d="M0 0 H960 V44 Q480 96 0 44 Z" ${sh(T.cockpit)}/>`;
+  s += `<path d="M0 540 V440 Q480 380 960 440 V540 Z" ${sh(T.cockpit)}/>`;
+  s += `<path d="M0 440 Q480 380 960 440" fill="none" stroke="${T.cockpitHi}" stroke-width="3"${G}/>`;
+  // 转速表
+  const cx = 480, cy = 418, P = (deg, r) => { const a = deg * Math.PI / 180; return [(cx + r * Math.cos(a)).toFixed(1), (cy + r * Math.sin(a)).toFixed(1)]; };
+  s += `<g${G}><circle cx="${cx}" cy="${cy}" r="50" fill="${T.tach}" stroke="${T.cockpitHi}" stroke-width="3"/>`;
+  for (let i = 0; i <= 9; i++) { const d = 135 + 270 * i / 9, p1 = P(d, 36), p2 = P(d, 44); s += `<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" stroke="${i >= 8 ? '#ff2a2a' : '#ffffff'}" stroke-width="3"/>`; }
+  const r1 = P(375, 44), r2 = P(405, 44);
+  s += `<path d="M${r1[0]} ${r1[1]} A44 44 0 0 1 ${r2[0]} ${r2[1]}" fill="none" stroke="#ff2a2a" stroke-width="5"/>`;
+  const n = P(135 + 270 * 7.4 / 9, 40);
+  s += `<line x1="${cx}" y1="${cy}" x2="${n[0]}" y2="${n[1]}" stroke="${T.needle}" stroke-width="4" stroke-linecap="round"/>`;
+  s += `<text x="${cx}" y="${cy + 30}" text-anchor="middle" font-size="26" font-weight="bold" fill="${T.hud}" font-family="${T.font.replace(/"/g, "'")}">5</text></g>`;
+  // 拨片、方向盘、手
+  s += `<rect x="286" y="470" width="16" height="44" rx="4" ${sh(T.cockpitHi, 2)}/><rect x="658" y="470" width="16" height="44" rx="4" ${sh(T.cockpitHi, 2)}/>`;
+  s += `<ellipse cx="480" cy="600" rx="200" ry="130" fill="none" stroke="${T.outline === 'none' ? T.wheel : T.outline}" stroke-width="${T.wire ? 4 : 30}"${G}/>`;
+  if (!T.wire) s += `<ellipse cx="480" cy="600" rx="200" ry="130" fill="none" stroke="${T.wheel === '#111111' ? '#33333d' : T.wheel}" stroke-width="20"/>`;
+  s += `<ellipse cx="328" cy="514" rx="34" ry="24" transform="rotate(-38 328 514)" ${sh(T.hand)}/><ellipse cx="632" cy="514" rx="34" ry="24" transform="rotate(38 632 514)" ${sh(T.hand)}/>`;
+  s += `<text x="948" y="118" text-anchor="end" font-size="13" fill="#fff" opacity=".85" font-family="'Microsoft YaHei',sans-serif">一次性样张，不是最终美术</text>`;
+  return s + `</svg>`;
+}
+
+function env(kind) {
+  const [sky, ground, a, b] = T.env[kind];
+  let s = `<svg viewBox="0 0 300 100" xmlns="http://www.w3.org/2000/svg">${DEFS}<rect width="300" height="100" fill="${sky}"/><g${G}>`;
+  if (kind === 'forest') for (let i = 0; i < 9; i++) s += tree(18 + i * 34, 74, 34 + (i * 37 % 26), a, b);
+  if (kind === 'ice') for (let i = 0; i < 4; i++) { const x = 6 + i * 74; s += `<polygon points="${x},74 ${x + 14},30 ${x + 32},46 ${x + 48},${18 + i * 5} ${x + 68},74" ${sh(a)}/>` + (T.wire ? '' : `<polygon points="${x + 48},${18 + i * 5} ${x + 68},74 ${x + 40},74" fill="${b}"/>`); }
+  if (kind === 'city') for (let i = 0; i < 9; i++) { const x = 8 + i * 32, h = 26 + (i * 53 % 44); s += `<rect x="${x}" y="${74 - h}" width="26" height="${h}" ${sh(i % 2 ? a : b)}/>`; for (let y = 74 - h + 7; y < 70; y += 9) s += `<line x1="${x + 5}" y1="${y}" x2="${x + 21}" y2="${y}" stroke="${T.wire ? b : sky}" stroke-width="2"/>`; }
+  s += `</g><rect y="74" width="300" height="26" fill="${ground}"/><rect y="82" width="300" height="10" fill="${T.road}" ${T.wire ? `stroke="${T.roadEdge}"` : ''}/>`;
+  return s + `</svg>`;
+}
+function car() {
+  return `<svg viewBox="0 0 300 110" xmlns="http://www.w3.org/2000/svg">${DEFS}<g${G}>
+    <path d="M14 82 L38 62 L112 50 L152 32 L214 32 L254 56 L288 64 L292 82 Z" ${sh(T.cockpitHi)}/>
+    <path d="M154 38 L208 38 L240 56 L122 54 Z" ${sh(T.sky[1])}/>
+    <circle cx="80" cy="84" r="17" ${sh(T.wheel)}/><circle cx="236" cy="84" r="17" ${sh(T.wheel)}/></g></svg>`;
+}
+function hairpin() {
+  const d = 'M20 92 H200 Q262 92 262 58 Q262 24 200 24 H20';
+  let s = `<svg viewBox="0 0 300 110" xmlns="http://www.w3.org/2000/svg">${DEFS}<g${G}>`;
+  if (T.wire) s += `<path d="${d}" fill="none" stroke="${T.roadEdge}" stroke-width="26"/><path d="${d}" fill="none" stroke="${T.bgDark}" stroke-width="22"/>`;
+  else { if (T.outline !== 'none') s += `<path d="${d}" fill="none" stroke="${T.outline}" stroke-width="${24 + T.ow * 2}"/>`; s += `<path d="${d}" fill="none" stroke="${T.road}" stroke-width="24"/>`; }
+  s += `<path d="${d}" fill="none" stroke="${T.lane}" stroke-width="2.5" stroke-dasharray="12 9"/>`;
+  s += `<polygon points="236,34 276,34 256,4" ${sh(T.needle)}/><text x="256" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="${T.wire ? T.needle : '#fff'}">!</text>`;
+  return s + `</g></svg>`;
+}
+function stickers() {
+  const m = [['塑料', '#9aa7ad'], ['铜', '#b87333'], ['银', '#c7cfd6'], ['金', '#f2c230']];
+  let s = `<svg viewBox="0 0 300 110" xmlns="http://www.w3.org/2000/svg">${DEFS}<g${G}>`;
+  m.forEach(([n, c], i) => {
+    const x = 42 + i * 72, y = 48;
+    s += `<circle cx="${x}" cy="${y}" r="28" ${sh(c)}/><polygon points="${x},${y - 16} ${x + 5},${y - 5} ${x + 16},${y - 4} ${x + 8},${y + 4} ${x + 10},${y + 15} ${x},${y + 9} ${x - 10},${y + 15} ${x - 8},${y + 4} ${x - 16},${y - 4} ${x - 5},${y - 5}" fill="${T.wire ? c : '#ffffff'}" opacity=".85"/>`;
+    s += `<text x="${x}" y="100" text-anchor="middle" font-size="13" fill="${T.ink}" font-family="'Microsoft YaHei',sans-serif">${n}</text>`;
+  });
+  return s + `</g></svg>`;
+}
+const lum = h => { const n = parseInt(h.slice(1), 16); return ((n >> 16) * 299 + ((n >> 8) & 255) * 587 + (n & 255) * 114) / 1000; };
+document.getElementById('app').innerHTML = `
+  <h1>${T.name}</h1><p class="desc">${T.desc}</p>
+  <div class="pal">${T.palette.map(([n, h]) => `<div class="sw" style="background:${h};color:${lum(h) > 140 ? '#111' : '#fff'}"><b>${n}</b><span>${h}</span></div>`).join('')}</div>
+  <h2>游戏画面示意（森林区段，高速右弯前）：座舱、方向盘和手、转速表与档位、挡风玻璃上的 HUD 小地图</h2>
+  ${screen()}
+  <h2>主体与障碍</h2>
+  <div class="row"><div>${car()}<div class="cap">星速跑车（外观侧影）</div></div><div>${hairpin()}<div class="cap">发卡弯（唯一的"敌人"是路）</div></div><div>${stickers()}<div class="cap">区段贴纸四个等级</div></div></div>
+  <h2>三个区段的环境</h2>
+  <div class="row"><div>${env('forest')}<div class="cap">森林</div></div><div>${env('ice')}<div class="cap">冰原</div></div><div>${env('city')}<div class="cap">城市</div></div></div>`;
+if (T.pixel) {
+  const pal = [...new Set(JSON.stringify(T).match(/#[0-9a-fA-F]{6}/g).concat(['#ffffff', '#000000', '#ff2a2a', '#9aa7ad', '#b87333', '#c7cfd6', '#f2c230', '#33333d']))]
+    .map(h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]);
+  const B = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+  document.querySelectorAll('#app svg').forEach(svg => {
+    const vb = svg.viewBox.baseVal, w = Math.round(vb.width / 2), h = Math.round(vb.height / 2);
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.style.cssText = 'display:block;width:100%;image-rendering:pixelated;border-radius:6px';
+      const x = c.getContext('2d'); x.fillStyle = T.page; x.fillRect(0, 0, w, h); x.drawImage(img, 0, 0, w, h);
+      const d = x.getImageData(0, 0, w, h), p = d.data;
+      for (let yy = 0; yy < h; yy++) for (let xx = 0; xx < w; xx++) {
+        const i = (yy * w + xx) * 4, o = (B[yy % 4][xx % 4] / 16 - 0.5) * 30;
+        const r = p[i] + o, g = p[i + 1] + o, b = p[i + 2] + o;
+        let best = 0, bd = 1e9;
+        for (let k = 0; k < pal.length; k++) { const q = pal[k], e = (r - q[0]) ** 2 + (g - q[1]) ** 2 + (b - q[2]) ** 2; if (e < bd) { bd = e; best = k; } }
+        p[i] = pal[best][0]; p[i + 1] = pal[best][1]; p[i + 2] = pal[best][2]; p[i + 3] = 255;
+      }
+      x.putImageData(d, 0, 0); svg.replaceWith(c);
+    };
+    const cl = svg.cloneNode(true); cl.setAttribute('width', vb.width); cl.setAttribute('height', vb.height);
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(cl));
+  });
+}
+</script>
+</body>
+</html>

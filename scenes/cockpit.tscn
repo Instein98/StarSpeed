@@ -1,0 +1,34 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/cockpit.gd" id="1"]
+
+[node name="Cockpit" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Shell" type="MeshInstance3D" parent="."]
+
+[node name="Dash" type="MeshInstance3D" parent="."]
+
+[node name="Tach" type="Node3D" parent="."]
+
+[node name="TachBody" type="MeshInstance3D" parent="Tach"]
+
+[node name="Needle" type="MeshInstance3D" parent="Tach"]
+
+[node name="GearLabel" type="Label3D" parent="Tach"]
+
+[node name="ShiftLamp" type="MeshInstance3D" parent="Tach"]
+
+[node name="Wheel" type="Node3D" parent="."]
+
+[node name="WheelMesh" type="MeshInstance3D" parent="Wheel"]
+
+[node name="WindshieldStickers" type="Node3D" parent="."]
+
+[node name="SlotForest" type="Node3D" parent="WindshieldStickers"]
+
+[node name="SlotIce" type="Node3D" parent="WindshieldStickers"]
+
+[node name="SlotCity" type="Node3D" parent="WindshieldStickers"]
+
+[node name="MinimapAnchor" type="Marker3D" parent="."]

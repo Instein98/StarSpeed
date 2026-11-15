@@ -1,0 +1,228 @@
+[gd_scene load_steps=33 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/car_sim.gd" id="2"]
+[ext_resource type="Script" path="res://scripts/track.gd" id="3"]
+[ext_resource type="Resource" path="res://data/track_access.tres" id="4"]
+[ext_resource type="Resource" path="res://data/track_loop.tres" id="5"]
+[ext_resource type="Resource" path="res://data/track_main.tres" id="6"]
+[ext_resource type="Script" path="res://scripts/ui/debug_overlay.gd" id="7"]
+[ext_resource type="Script" path="res://scripts/engine_audio.gd" id="8"]
+[ext_resource type="Script" path="res://scripts/tire_audio.gd" id="9"]
+[ext_resource type="Script" path="res://scripts/environment_director.gd" id="10"]
+[ext_resource type="Resource" path="res://data/env_forest.tres" id="11"]
+[ext_resource type="Shader" path="res://shaders/post_world.gdshader" id="12"]
+[ext_resource type="Shader" path="res://shaders/post_cockpit.gdshader" id="13"]
+[ext_resource type="Shader" path="res://shaders/sharp_scale.gdshader" id="14"]
+[ext_resource type="PackedScene" path="res://scenes/cockpit.tscn" id="15"]
+[ext_resource type="Script" path="res://scripts/camera_rig.gd" id="16"]
+[ext_resource type="Script" path="res://scripts/speed_fx.gd" id="17"]
+[ext_resource type="Script" path="res://scripts/minimap.gd" id="18"]
+[ext_resource type="Shader" path="res://shaders/hologram.gdshader" id="19"]
+[ext_resource type="Shader" path="res://shaders/vignette.gdshader" id="20"]
+[ext_resource type="Script" path="res://scripts/explosion.gd" id="21"]
+
+[sub_resource type="QuadMesh" id="quad"]
+size = Vector2(2, 2)
+
+[sub_resource type="ShaderMaterial" id="post_world_mat"]
+render_priority = 100
+shader = ExtResource("12")
+
+[sub_resource type="ShaderMaterial" id="post_cockpit_mat"]
+render_priority = 100
+shader = ExtResource("13")
+
+[sub_resource type="Environment" id="cockpit_env"]
+background_mode = 1
+background_color = Color(0, 0, 0, 0)
+ambient_light_source = 1
+reflected_light_source = 1
+
+[sub_resource type="ShaderMaterial" id="hologram_mat"]
+shader = ExtResource("19")
+
+[sub_resource type="ShaderMaterial" id="vignette_mat"]
+shader = ExtResource("20")
+
+[sub_resource type="ShaderMaterial" id="world_scale_mat"]
+shader = ExtResource("14")
+shader_parameter/prescale = 2.0
+
+[sub_resource type="ShaderMaterial" id="cockpit_scale_mat"]
+shader = ExtResource("14")
+shader_parameter/prescale = 3.0
+
+[node name="Main" type="Node"]
+script = ExtResource("1")
+
+[node name="CarSim" type="Node" parent="."]
+script = ExtResource("2")
+
+[node name="WorldViewport" type="SubViewport" parent="."]
+size = Vector2i(960, 540)
+render_target_update_mode = 4
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="WorldViewport"]
+
+[node name="EnvironmentDirector" type="Node" parent="WorldViewport"]
+script = ExtResource("10")
+forest = ExtResource("11")
+
+[node name="Track" type="Node3D" parent="WorldViewport"]
+script = ExtResource("3")
+access_data = ExtResource("4")
+loop_data = ExtResource("5")
+main_data = ExtResource("6")
+
+[node name="RoadMesh" type="MeshInstance3D" parent="WorldViewport/Track"]
+
+[node name="GroundMesh" type="MeshInstance3D" parent="WorldViewport/Track"]
+
+[node name="CameraRig" type="Node3D" parent="WorldViewport"]
+script = ExtResource("16")
+
+[node name="WorldCamera" type="Camera3D" parent="WorldViewport/CameraRig"]
+fov = 70.0
+near = 0.3
+far = 4000.0
+current = true
+
+[node name="WorldPost" type="MeshInstance3D" parent="WorldViewport/CameraRig/WorldCamera"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+extra_cull_margin = 16384.0
+mesh = SubResource("quad")
+surface_material_override/0 = SubResource("post_world_mat")
+script = ExtResource("17")
+
+[node name="CockpitViewport" type="SubViewport" parent="."]
+own_world_3d = true
+transparent_bg = true
+size = Vector2i(1280, 720)
+render_target_update_mode = 4
+
+[node name="CockpitEnvironment" type="WorldEnvironment" parent="CockpitViewport"]
+environment = SubResource("cockpit_env")
+
+[node name="Cockpit" parent="CockpitViewport" instance=ExtResource("15")]
+
+[node name="CockpitCamera" type="Camera3D" parent="CockpitViewport"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.05, 0)
+fov = 70.0
+near = 0.03
+far = 10.0
+current = true
+
+[node name="CockpitPost" type="MeshInstance3D" parent="CockpitViewport/CockpitCamera"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -1)
+extra_cull_margin = 16384.0
+mesh = SubResource("quad")
+surface_material_override/0 = SubResource("post_cockpit_mat")
+
+[node name="MinimapViewport" type="SubViewport" parent="CockpitViewport"]
+own_world_3d = true
+transparent_bg = true
+size = Vector2i(220, 115)
+render_target_update_mode = 4
+script = ExtResource("18")
+
+[node name="MapCamera" type="Camera3D" parent="CockpitViewport/MinimapViewport"]
+current = true
+
+[node name="RoadRibbon" type="MeshInstance3D" parent="CockpitViewport/MinimapViewport"]
+
+[node name="CarArrow" type="MeshInstance3D" parent="CockpitViewport/MinimapViewport"]
+
+[node name="Screen" type="CanvasLayer" parent="."]
+layer = 0
+
+[node name="WorldRect" type="TextureRect" parent="Screen"]
+texture_filter = 2
+material = SubResource("world_scale_mat")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+
+[node name="StruggleVignette" type="ColorRect" parent="Screen"]
+material = SubResource("vignette_mat")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="CockpitRect" type="TextureRect" parent="Screen"]
+texture_filter = 2
+material = SubResource("cockpit_scale_mat")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+
+[node name="MinimapRect" type="TextureRect" parent="Screen"]
+material = SubResource("hologram_mat")
+offset_right = 330.0
+offset_bottom = 172.0
+mouse_filter = 2
+expand_mode = 1
+
+[node name="ExplosionOverlay" type="Control" parent="Screen"]
+visible = false
+layout_mode = 3
+anchors_preset = 0
+offset_right = 960.0
+offset_bottom = 540.0
+scale = Vector2(2, 2)
+mouse_filter = 2
+script = ExtResource("21")
+
+[node name="UI" type="CanvasLayer" parent="."]
+layer = 1
+
+[node name="UIRoot" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 960.0
+offset_bottom = 540.0
+scale = Vector2(2, 2)
+mouse_filter = 2
+
+[node name="ExitSwitchHint" type="Label" parent="UI/UIRoot"]
+layout_mode = 0
+offset_left = 24.0
+offset_top = 136.0
+offset_right = 420.0
+offset_bottom = 156.0
+theme_override_colors/font_color = Color(1, 0.788235, 0.235294, 1)
+theme_override_font_sizes/font_size = 12
+
+[node name="FullscreenFade" type="ColorRect" parent="UI/UIRoot"]
+layout_mode = 0
+offset_right = 960.0
+offset_bottom = 540.0
+mouse_filter = 2
+color = Color(1, 1, 1, 0)
+
+[node name="DebugOverlay" type="Control" parent="UI/UIRoot"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 960.0
+offset_bottom = 540.0
+mouse_filter = 2
+script = ExtResource("7")
+
+[node name="Audio" type="Node" parent="."]
+
+[node name="EngineAudio" type="Node" parent="Audio"]
+script = ExtResource("8")
+
+[node name="TireAudio" type="Node" parent="Audio"]
+script = ExtResource("9")
