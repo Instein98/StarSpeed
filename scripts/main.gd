@@ -75,6 +75,7 @@ var _timing_section := -1
 var _section_time := 0.0
 var _prev_main_s := -1.0
 var _time_label: Label
+var flow: RunFlow
 
 
 func _ready() -> void:
@@ -120,7 +121,11 @@ func _ready() -> void:
 	_time_label.offset_top = 20.0
 	_time_label.offset_bottom = 48.0
 	exit_hint.get_parent().add_child(_time_label)
-	car.place(Track.PATH_ACCESS, 0.0, 0.0, 1, true)
+	flow = RunFlow.new()
+	flow.name = "RunFlow"
+	exit_hint.get_parent().add_child(flow)
+	flow.setup(self, car, track, exit_hint)
+	flow.enter_base()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -131,8 +136,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("debug_next_segment"):
 		if _fail_phase == FailPhase.NONE:
 			_jump_to_next_section()
-	elif event.is_action_pressed("confirm"):
-		_toggle_exit_switch()
+			flow.debug_enter_run()
 	elif event.is_action_pressed("debug_fx_mode"):
 		# F5：画面方案轮换 M → A → B（T-48）；只改本次运行，选定后写回调参文件
 		var modes: Array[String] = ["M", "A", "B"]
@@ -140,10 +144,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	# 临时：驶完城市终点线后的尾段，回到出库路起点（相当于 R-22；驶出开关关闭）
+	# 保险：万一开到了终点线后尾段的尽头（正常情况下结算时车会自己刹停），直接回大本营
 	if car.path_id == Track.PATH_MAIN and car.s >= track.length(Track.PATH_MAIN) - 0.01:
-		car.set_exit_armed(false)
-		car.place(Track.PATH_ACCESS, 0.0, 0.0, 1, true)
+		return_to_base()
 	_update_section_timer(delta)
 	# 爆缸演出的前 0.4 秒：车还在赛道上，车速按 2 g 下降
 	if _fail_phase == FailPhase.PRE and _fail_kind != CarSim.Fail.OFF_TRACK:
@@ -163,7 +166,28 @@ func _process(delta: float) -> void:
 	else:
 		fullscreen_fade.color = Color(1.0, 1.0, 1.0, _flash)
 	vignette.material.set("shader_parameter/amount", car.slide_frac)
-	_update_exit_hint()
+
+
+# ───────────────────────── 一局的流程（RunFlow 调用） ─────────────────────────
+
+## 回大本营：中断正在播的失败演出，白闪一下，车回车库。
+func return_to_base() -> void:
+	if _fail_phase != FailPhase.NONE:
+		_fail_phase = FailPhase.NONE
+		explosion.stop()
+		camera_rig.stop_flyoff()
+		cockpit.blown = false
+		engine_audio.rev_target = -1.0
+		(_sfx["explosion"] as AudioStreamPlayer).stop()
+		_set_drive_audio_muted(false)
+	_flash = 1.0
+	flow.enter_base()
+
+
+func clear_section_time() -> void:
+	_time_label.text = ""
+	_timing_section = -1
+	_prev_main_s = -1.0
 
 
 # ───────────────────────── 区段计时 ─────────────────────────
@@ -182,6 +206,7 @@ func _update_section_timer(delta: float) -> void:
 			if _prev_main_s < gate and s >= gate:
 				if _timing_section == i - 1 and i >= 1:
 					_time_label.text = "%s  %s" % [track.section_names[i - 1], _format_time(_section_time)]
+					flow.section_done(i - 1, _section_time)
 				_timing_section = i if i < track.gate_s.size() - 1 else -1
 				_section_time = 0.0
 	_prev_main_s = s
@@ -201,19 +226,6 @@ func _distance_to_fork() -> float:
 	if car.s < track.fork_s:
 		return track.fork_s - car.s
 	return track.length(Track.PATH_LOOP) - car.s + track.fork_s
-
-
-func _toggle_exit_switch() -> void:
-	if _fail_phase != FailPhase.NONE or car.path_id == Track.PATH_MAIN:
-		return
-	if _distance_to_fork() < EXIT_LOCK_DISTANCE:
-		return   # 锁定：过了岔路口再生效
-	car.set_exit_armed(not car.exit_armed)
-
-
-func _update_exit_hint() -> void:
-	exit_hint.visible = car.path_id != Track.PATH_MAIN and _fail_phase == FailPhase.NONE
-	exit_hint.text = "主赛道已接入（回车取消）" if car.exit_armed else "回车：下次岔路口上主赛道"
 
 
 # ───────────────────────── 失败演出 ─────────────────────────

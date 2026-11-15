@@ -11,6 +11,8 @@ const REBINDABLE: Array[String] = ["throttle", "shift_up", "shift_down"]
 var data: Dictionary = {
 	"version": 1,
 	"keys": {},
+	"best_total": -1.0,                  # 三个区段连着跑完的最好总用时（秒），−1 = 还没有
+	"best_sections": [-1.0, -1.0, -1.0], # 各区段的最好用时
 }
 
 
@@ -42,6 +44,12 @@ func _load() -> void:
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 	if not parsed is Dictionary:
 		return   # 无法解析时使用默认值
+	var best_total: Variant = (parsed as Dictionary).get("best_total")
+	if best_total is float or best_total is int:
+		data["best_total"] = float(best_total)
+	var best_sections: Variant = (parsed as Dictionary).get("best_sections")
+	if best_sections is Array and (best_sections as Array).size() == 3:
+		data["best_sections"] = [float(best_sections[0]), float(best_sections[1]), float(best_sections[2])]
 	var keys: Variant = (parsed as Dictionary).get("keys")
 	if keys is Dictionary:
 		for action in REBINDABLE:
