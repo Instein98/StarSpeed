@@ -60,7 +60,7 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档，回车 = 驶出�
 
 - GDScript 里把字典里的 PackedArray 用 `as` 转型后 `append`，改的是副本。要原地追加就用普通 `Array`。
 - 岔路口、并入口附近不放测试方块（`main.gd` 的 `_near_road`），急弯自己的两侧要有。改这块后从正上方截图核对。
-- 引擎声的四个转速层是用 `tools/make_engine_layers.py` 从 muted.io 的 Performance Cars 采样包（CC0）切出来的，三段录音来自不同的车，层与层之间音色可能不连贯。采样包本身（266 MB 的 zip）不进仓库。音频来源和许可写在 `assets/audio/CREDITS.md`，用了别人的素材要在那里登记。
+- 引擎声的四个转速层是用 `tools/make_engine_layers.py` 从 muted.io 的 Performance Cars 采样包（CC0）生成的，四层都取自同一段录音（011 号的一次轰油），所以音色一致。开发者明确要求各层音色一致、接近早先合成音那种谐波丰富的音色；试过每层用不同车的录音，被否决了（6000 转前后明显不连贯）。采样包本身（266 MB 的 zip）不进仓库。音频来源和许可写在 `assets/audio/CREDITS.md`，用了别人的素材要在那里登记。
 - 替换音频文件后，Claude 自己跑 Godot 前要先执行一次 `--headless --import`，否则读到的还是旧的导入缓存。
 
 ## 提交
