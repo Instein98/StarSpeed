@@ -21,6 +21,10 @@ extends Resource
 @export var t13_coast_knee_rpm: float                    ## T-13/T-14 之间的拐点（规格初始 6000）
 @export var t14_coast_decel_max_g: float
 @export var t15_downshift_speed_loss: float
+## 极速（开发者 2026-11-14：加第 9 档，游戏里的最高车速是 9 档 6500 转左右）。
+## 离极速不到 top_speed_taper_kmh 时驱动加速度线性减到 0。
+@export var top_speed_kmh: float
+@export var top_speed_taper_kmh: float
 ## 景物拉线随车速的增长方式：拉线长度 = 车速 × 曝光 × (车速 ÷ fx_motion_full_kmh) ^ fx_motion_power。
 ## power = 0 是线性；越大，中低速越接近没有、高速涨得越猛。
 @export var fx_motion_full_kmh: float

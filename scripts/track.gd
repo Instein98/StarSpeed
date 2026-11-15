@@ -32,7 +32,7 @@ const GROUND_STEP := 20
 const GROUND_OVERLAP := 150.0
 const SECTION_GROUND_Y: Array[float] = [-0.05, -0.10, -0.15]
 const LAKE_Y := -0.03
-const LAKE_SEG_LABEL := "I18"
+const LAKE_SEG_LABEL := "I11"   ## 冰原最长的直道在冰湖上
 
 const COL_ROAD := Color("4a5262")
 const COL_ROAD_DARK := Color("363d4b")

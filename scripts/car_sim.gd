@@ -234,6 +234,8 @@ func step(dt: float) -> void:
 			a *= t.t16_uphill_factor
 		if ratio >= t.t22_zone1_start:
 			a *= t.t57_tire_drive_factor                                           # R-03a
+		# 极速：越接近 top_speed 加速度越小，到了就不再加速
+		a *= clampf((t.top_speed_kmh * KMH - v) / maxf(t.top_speed_taper_kmh * KMH, 0.01), 0.0, 1.0)
 	elif throttle:
 		a = 0.0                                                                    # R-08 断油
 	else:
