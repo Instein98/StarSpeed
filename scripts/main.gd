@@ -56,6 +56,8 @@ var sfx: Sfx
 var tutorial: Tutorial
 ## 理想车速曲线（分层音乐按 车速 ÷ 理想车速 叠加鼓和主音）
 var pace_profile: PaceProfile
+## F6：分层音乐的调试灯
+var music_lamps: MusicLamps
 ## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
 var cockpit_brightness := 1.0
 var _minimap_on := true
@@ -106,6 +108,11 @@ func _ready() -> void:
 	music.name = "Music"
 	music.main = self
 	$Audio.add_child(music)
+	music_lamps = MusicLamps.new()
+	music_lamps.name = "MusicLamps"
+	music_lamps.music = music
+	music_lamps.visible = false
+	$UI/UIRoot.add_child(music_lamps)
 	sfx = Sfx.new()
 	sfx.name = "Sfx"
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
@@ -167,6 +174,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			set_ignited_look(true)
 			_jump_to_next_section()
 			flow.debug_enter_run()
+	elif event.is_action_pressed("debug_music"):
+		music_lamps.visible = not music_lamps.visible
 	elif event.is_action_pressed("debug_fx_mode"):
 		# F5：画面方案轮换 M → A → B（T-48）；只改本次运行，选定后写回调参文件
 		var modes: Array[String] = ["M", "A", "B"]
