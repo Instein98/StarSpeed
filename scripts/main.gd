@@ -121,6 +121,8 @@ func _ready() -> void:
 	_reveal.material = reveal_mat
 	world_rect.get_parent().add_child(_reveal)
 	world_rect.get_parent().move_child(_reveal, world_rect.get_index() + 1)
+	# 打滑的朱红晕影放到座舱画面上面（原来在座舱下面，大部分被座舱挡住看不见）
+	vignette.get_parent().move_child(vignette, cockpit_rect.get_index())
 	for sfx_name: String in ["crash", "explosion"]:   # 爆缸前的那一声"噔"按开发者要求去掉了，直接炸
 		var player := AudioStreamPlayer.new()
 		player.stream = EngineAudio.load_stream(WORLD_AUDIO_DIR + sfx_name + ".wav", false)

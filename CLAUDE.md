@@ -9,7 +9,8 @@
 ## 运行与检查
 
 - Godot：`D:\Software\Godot_v4.5.1\Godot_v4.5.1-stable_win64.exe`（带控制台输出的是 `..._console.exe`）。
-- 开发者自己试玩：直接用 Godot 打开项目运行，默认全屏。
+- 开发者自己试玩：直接用 Godot 打开项目运行，默认全屏；或双击项目根目录的 `play.cmd`（不进 git）。
+- 导出 Windows 可执行文件（输出到 `build/`，不进 git）：`Godot_v4.5.1-stable_win64_console.exe --headless --path . --export-release "Windows Desktop" build/StarSpeed.exe`。
 - **Claude 自己运行 Godot 时，不能在开发者屏幕上弹出窗口，也不能出声。**
   - 只查逻辑：`--headless`。
   - 需要真实渲染（截图、帧率）：用 `tools/hidden_run.ps1` 在隐藏的 Windows 桌面上启动，并且必须加 `--audio-driver Dummy`。项目设成了全屏，`--windowed` 不起作用。
