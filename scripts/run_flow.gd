@@ -5,10 +5,12 @@ extends Control
 ##   计时赛：出库后在岔路口直行上主赛道，过森林起点线开始计时，三个区段连着跑；
 ##           撞车、爆缸都是爆炸后退到弯前复位，计时不停。过城市终点线后显示结算，回车回大本营。
 ##   练习：出库后在岔路口拐进环道随便绕圈，不计时；回车回大本营。
-##   暂停：Esc。继续 / 回大本营 / 退出游戏。
+##   暂停：Esc。继续 / 回大本营 / 回到标题 / 退出游戏。
+## 标题画面和点火（规格 6.1、6.8、9.2、9.3）：启动后先是标题画面（漆黑座舱、贴纸被小灯照亮），
+## 选"开始"进点火提示，长按油门 T-50 秒点火：指针从 0 扫到 9000，点着后窗外揭开（V-01），然后到大本营。
 ## 这个节点在暂停时也照常运行（process_mode = ALWAYS），界面用 _draw 画在 960×540 的网格上。
 
-enum State { BASE, PRACTICE, RUN, RESULTS }
+enum State { TITLE, IGNITE, IGNITING, BASE, PRACTICE, RUN, RESULTS }
 
 const GRID := Vector2(960.0, 540.0)
 const COL_TEXT := Color("f7ecd4")
@@ -19,9 +21,25 @@ const COL_RECORD := Color("c77dff")
 const RECENT_COUNT := 3
 const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
 const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
-const PAUSE_OPTIONS: Array[String] = ["继续", "回大本营", "退出游戏"]
+const PAUSE_OPTIONS: Array[String] = ["继续", "回大本营", "回到标题", "退出游戏"]
+# 9.1 界面颜色
+const COL_DARK := Color("1b2233")
+const COL_DARKER := Color("0f1424")
+const COL_RED := Color("ef4a2f")
+const COL_ROAD := Color("4a5262")
+const BUTTON_SIZE := Vector2(320.0, 44.0)
+# 点火演出（规格 4.3 的"点火演出"、8.3、8.5 V-01）
+const IGNITE_TIME := 1.2
+const REVEAL_START := 0.6
+const REVEAL_TIME := 0.35
+const LIGHT_UP_FROM := 0.6
+const LIGHT_UP_TO := 0.95
+const COCKPIT_DARK := 0.15
+const TACH_DARK := 0.3
+const START_BLIP_RPM := 4200.0
+const START_BLIP_TIME := 0.22
 
-var state := State.BASE
+var state := State.TITLE
 var paused := false
 var section_times: Array[float] = [-1.0, -1.0, -1.0]   ## 本局各区段用时，−1 = 没有
 var new_record := false
@@ -38,6 +56,11 @@ var _hint: Label
 var _select := 0
 var _pause_select := 0
 var _font: Font
+var _title_select := 0
+var _ignite_hold := 0.0
+var _ignite_time := 0.0
+var _need_release := false
+var _blink := 0.0
 
 
 func _ready() -> void:
@@ -56,6 +79,116 @@ func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit
 	_car = p_car
 	_track = p_track
 	_hint = p_hint
+
+
+# ───────────────────────── 标题画面与点火 ─────────────────────────
+
+## 标题画面的按钮：[文字, 可用, 动作]。键位设置、语言、重看开场在后面的功能里接上。
+func title_buttons() -> Array:
+	var list := [["开始", true, "start"]]
+	list.append(["键位设置", _main.has_method("open_keys"), "keys"])
+	list.append(["语言：中文", false, "lang"])
+	if bool(SaveData.data.get("intro_seen", false)) and _main.has_method("play_intro"):
+		list.append(["重看开场", true, "intro"])
+	list.append(["退出", true, "quit"])
+	return list
+
+
+## 回到标题画面：世界画面不显示，座舱漆黑，转速表微光，贴纸被小灯照亮（6.8）。
+func enter_title() -> void:
+	state = State.TITLE
+	_title_select = 0
+	_car.use_device_input = false
+	_car.place(Track.PATH_ACCESS, 0.0, 0.0, 1, true)
+	_car.mode = CarSim.Mode.LOCKED
+	_main.call("clear_section_time")
+	_main.call("set_ignited_look", false)
+	_update_hint()
+
+
+## 点火提示（9.3）：长按油门 T-50 秒点火。
+func enter_ignite() -> void:
+	state = State.IGNITE
+	_ignite_hold = 0.0
+	_need_release = Input.is_action_pressed("throttle")
+	_update_hint()
+
+
+func _update_ignite(delta: float) -> void:
+	var held := Input.is_action_pressed("throttle")
+	if _need_release:
+		_need_release = held
+		return
+	if held:
+		if _ignite_hold == 0.0:
+			_main.sfx.play("starter")
+		_ignite_hold += delta
+		var p := clampf(_ignite_hold / Tuning.d.t50_ignition_hold, 0.0, 1.0)
+		_cockpit.needle_override = p * Cockpit.RPM_MAX
+		# 转速表 30% 的微光下指针几乎看不见；长按期间表随充能亮起来，让进度看得清
+		_cockpit.set_tach_brightness(lerpf(TACH_DARK, 1.0, sqrt(p)))
+		if _ignite_hold >= Tuning.d.t50_ignition_hold:
+			_start_ignition()
+	elif _ignite_hold > 0.0:
+		# 没按满就松手：计时清零，指针落回 0
+		_ignite_hold = 0.0
+		_cockpit.needle_override = 0.0
+		_cockpit.set_tach_brightness(TACH_DARK)
+		_main.sfx.stop("starter")
+
+
+func _start_ignition() -> void:
+	state = State.IGNITING
+	_ignite_time = 0.0
+	_need_release = true
+	_main.sfx.stop("starter")
+	_cockpit.needle_override = -1.0
+	_main.call("set_drive_audio_on", true)
+	_main.engine_audio.rev_target = START_BLIP_RPM     # 点着的那一下：短促地轰一声再落到怠速
+	_car.ignited.emit()
+
+
+func _update_igniting(delta: float) -> void:
+	_ignite_time += delta
+	if _ignite_time >= START_BLIP_TIME:
+		_main.engine_audio.rev_target = -1.0
+	var light := clampf((_ignite_time - LIGHT_UP_FROM) / (LIGHT_UP_TO - LIGHT_UP_FROM), 0.0, 1.0)
+	_main.cockpit_brightness = lerpf(COCKPIT_DARK, 1.0, light)
+	if _ignite_time >= REVEAL_START:
+		_main.call("set_world_reveal", clampf((_ignite_time - REVEAL_START) / REVEAL_TIME, 0.0, 1.0))
+	if not Input.is_action_pressed("throttle"):
+		_need_release = false
+	if _ignite_time >= IGNITE_TIME and not _need_release:
+		_main.call("set_ignited_look", true)
+		enter_base()
+
+
+func _title_choose() -> void:
+	var b: Array = title_buttons()[_title_select]
+	if not bool(b[1]):
+		return
+	_main.sfx.play("ui_ok")
+	match str(b[2]):
+		"start":
+			if not bool(SaveData.data.get("intro_seen", false)) and _main.has_method("play_intro"):
+				_main.call("play_intro")
+			else:
+				enter_ignite()
+		"keys":
+			_main.call("open_keys")
+		"intro":
+			_main.call("play_intro")
+		"quit":
+			get_tree().quit()
+
+
+func _title_move(step: int) -> void:
+	var list := title_buttons()
+	for _i in list.size():
+		_title_select = posmod(_title_select + step, list.size())
+		if bool(list[_title_select][1]):
+			break
+	_main.sfx.play("ui_move")
 
 
 # ───────────────────────── 状态切换 ─────────────────────────
@@ -168,6 +301,16 @@ func _update_hint() -> void:
 # ───────────────────────── 输入 ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	if state in [State.TITLE, State.IGNITE, State.IGNITING]:
+		# 9.1 / 11.2a：标题、点火提示时 Esc 不响应
+		if state == State.TITLE:
+			if event.is_action_pressed("ui_up"):
+				_title_move(-1)
+			elif event.is_action_pressed("ui_down"):
+				_title_move(1)
+			elif event.is_action_pressed("confirm"):
+				_title_choose()
+		return
 	if event.is_action_pressed("pause"):
 		_set_paused(not paused)
 		get_viewport().set_input_as_handled()
@@ -207,16 +350,35 @@ func _pause_choose() -> void:
 			_set_paused(false)
 			_main.call("return_to_base")
 		2:
+			_set_paused(false)
+			_main.call("return_to_title")
+		3:
 			get_tree().quit()
 
 
 # ───────────────────────── 界面 ─────────────────────────
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_blink = fposmod(_blink + delta, 1.0)
+	if not paused:
+		if state == State.IGNITE:
+			_update_ignite(delta)
+		elif state == State.IGNITING:
+			_update_igniting(delta)
 	queue_redraw()
 
 
 func _draw() -> void:
+	if state == State.TITLE:
+		_draw_title()
+		return
+	if state == State.IGNITE:
+		# 点火提示：居中 y = 290，金黄，每秒闪一次；长按期间常亮
+		if _ignite_hold > 0.0 or _blink < 0.5:
+			_text_center("长按 [空格] 点火", 290.0, 24, COL_GOLD)
+		return
+	if state == State.IGNITING:
+		return
 	if paused:
 		_draw_menu("暂停", PAUSE_OPTIONS, _pause_select, "↑ ↓ 选择    回车 确定    Esc 继续", [])
 	elif state == State.BASE:
@@ -290,6 +452,35 @@ func _draw_results() -> void:
 	_text_center("回车：回大本营", 470.0, 12, COL_DIM)
 
 
+## 标题画面（9.2）。
+func _draw_title() -> void:
+	# 标题：朱红，(4, 4) 金黄硬投影；副标题暖白
+	_text_center("STAR SPEED", 60.0 + 72.0 + 4.0, 72, COL_GOLD, Vector2(4.0, 0.0))
+	_text_center("STAR SPEED", 60.0 + 72.0, 72, COL_RED)
+	_text_center("星速", 140.0 + 48.0, 48, COL_TEXT)
+	var list := title_buttons()
+	for i in list.size():
+		var b: Array = list[i]
+		_draw_button(str(b[0]), Vector2(480.0, 232.0 + 50.0 * i), i == _title_select, bool(b[1]))
+	draw_string(_font, Vector2(24.0, 516.0 + 12.0), "↑↓ 选择   回车 确定", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+
+
+## 9.1 的按钮：320×44，4 像素边框，(4, 4) 更深蓝黑硬投影；选中时金黄填充，左侧外 16 像素一个朱红三角。
+func _draw_button(text: String, center_top: Vector2, selected: bool, enabled: bool) -> void:
+	var r := Rect2(Vector2(center_top.x - BUTTON_SIZE.x * 0.5, center_top.y), BUTTON_SIZE)
+	var fill := COL_GOLD if (selected and enabled) else COL_DARK
+	var border := COL_TEXT if enabled else COL_ROAD
+	var text_col := COL_DARK if (selected and enabled) else (COL_TEXT if enabled else COL_DIM)
+	if enabled:
+		draw_rect(Rect2(r.position + Vector2(4.0, 4.0), r.size), COL_DARKER)
+	draw_rect(r, border)
+	draw_rect(r.grow(-4.0), fill)
+	draw_string(_font, Vector2(r.position.x, r.position.y + 32.0), text, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 24, text_col)
+	if selected and enabled:
+		var tip := Vector2(r.position.x - 16.0, r.position.y + r.size.y * 0.5)
+		draw_colored_polygon(PackedVector2Array([tip, tip + Vector2(-14.0, -9.0), tip + Vector2(-14.0, 9.0)]), COL_RED)
+
+
 ## 居中的一行"名字  时间"：名字在中线左边右对齐，时间在中线右边左对齐，两者颜色分开。
 func _text_pair(label: String, value: String, y: float, font_size: int, value_color: Color, label_color := COL_TEXT) -> void:
 	var mid := GRID.x * 0.5
@@ -301,8 +492,8 @@ func _text_right(text: String, right_x: float, y: float, font_size: int, color: 
 	draw_string(_font, Vector2(0.0, y), text, HORIZONTAL_ALIGNMENT_RIGHT, right_x, font_size, color)
 
 
-func _text_center(text: String, y: float, font_size: int, color: Color) -> void:
-	draw_string(_font, Vector2(0.0, y), text, HORIZONTAL_ALIGNMENT_CENTER, GRID.x, font_size, color)
+func _text_center(text: String, y: float, font_size: int, color: Color, offset := Vector2.ZERO) -> void:
+	draw_string(_font, Vector2(offset.x, y + offset.y), text, HORIZONTAL_ALIGNMENT_CENTER, GRID.x, font_size, color)
 
 
 static func format_time(seconds: float) -> String:

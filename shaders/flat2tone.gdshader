@@ -11,6 +11,7 @@ uniform vec3 night_emissive = vec3(1.0);           // sRGB 数值
 uniform bool night_mode = false;
 uniform vec3 external_color = vec3(1.0);           // sRGB 数值
 uniform bool use_instance_custom = false;          // 外部颜色取自 MultiMesh 自定义数据
+uniform float emissive_scale = 1.0;                // 自发光部分的亮度（座舱点火前转速表只有微光，8.3）
 
 varying vec3 world_pos;
 varying vec4 vcol;
@@ -38,7 +39,7 @@ void fragment() {
 	}
 	vec3 srgb;
 	if (a < 0.125) {
-		srgb = base;
+		srgb = base * emissive_scale;
 	} else if (night_mode && a < 0.375) {
 		srgb = night_emissive;
 	} else {

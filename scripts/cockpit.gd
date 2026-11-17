@@ -61,6 +61,14 @@ var game_time := 0.0
 const BLOWN_SWEEP_RPM_PER_SEC := 7000.0
 var blown := false
 var stickers: StickerDisplay
+## 大于等于 0 时指针直接指这个转速（点火长按时指针从 0 扫到 9000，9.3）
+var needle_override := -1.0
+## 点火之前档位窗是空的（9.4）
+var show_gear := true
+## 贴纸被小灯照亮（标题画面、结尾：亮度 1.0）；否则跟随座舱亮度（8.3）
+var stickers_lit := false
+var _sticker_material: ShaderMaterial
+var _brightness := 1.0
 
 var _needle_rpm := 0.0
 var _steer_deg := 0.0
@@ -95,13 +103,24 @@ func _ready() -> void:
 	stickers = StickerDisplay.new()
 	stickers.name = "Stickers"
 	$WindshieldStickers.add_child(stickers)
-	stickers.setup(material, EYE)
+	_sticker_material = material.duplicate() as ShaderMaterial
+	stickers.setup(_sticker_material, EYE)
 
 
 ## 光色取当前环境的光色；亮度点火前 0.15、点火后 1.0（阶段 5 接入）。
 func set_light(color: Color, brightness: float) -> void:
-	material.set_shader_parameter("light_color", Vector3(color.r, color.g, color.b))
+	_brightness = brightness
+	var c := Vector3(color.r, color.g, color.b)
+	material.set_shader_parameter("light_color", c)
 	material.set_shader_parameter("brightness", brightness)
+	_sticker_material.set_shader_parameter("light_color", c)
+	_sticker_material.set_shader_parameter("brightness", 1.0 if stickers_lit else brightness)
+	_sticker_material.set_shader_parameter("emissive_scale", 1.0 if stickers_lit else maxf(brightness, 0.3))
+
+
+## 自发光部分（转速表的指针、数字等）的亮度：点火前 0.3，点火后 1.0（8.3）。
+func set_tach_brightness(v: float) -> void:
+	material.set_shader_parameter("emissive_scale", v)
 
 
 ## 方向盘当前转角（度，左转为正）；小地图的箭头倾斜用。
@@ -117,7 +136,10 @@ func _process(delta: float) -> void:
 
 	# 指针：平时显示 0.04 秒平滑的 rpm；换挡扫动和断油抖动直接驱动（5.2、R-08）
 	var shown := 0.0
-	if blown:
+	if needle_override >= 0.0:
+		shown = needle_override
+		_needle_rpm = shown
+	elif blown:
 		# 爆缸：指针很快地扫到尽头卡住（不是瞬移），速度和引擎声的转速扫动一致
 		_needle_rpm = move_toward(_needle_rpm, RPM_MAX, BLOWN_SWEEP_RPM_PER_SEC * delta)
 		shown = _needle_rpm
@@ -142,6 +164,8 @@ func _process(delta: float) -> void:
 	else:
 		gear_label.modulate = COL_GOLD
 		gear_label.visible = true
+	if not show_gear:
+		gear_label.visible = false
 
 	# 换挡提示灯（R-09a）
 	var lit := false

@@ -52,6 +52,11 @@ var _fail_speed := 0.0
 var _fail_pre_time := FAIL_PRE_TIME
 var _sfx: Dictionary = {}
 var scenery: Scenery
+var sfx: Sfx
+## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
+var cockpit_brightness := 1.0
+var _minimap_on := true
+var _reveal: ColorRect
 # 区段计时：过了区段起点线开始计，过终点线时把用时显示在右上角，直到下一个区段跑完
 var _timing_section := -1
 var _section_time := 0.0
@@ -87,6 +92,20 @@ func _ready() -> void:
 	overlay.set("car", car)
 	overlay.set("track", track)
 	overlay.visible = false
+	sfx = Sfx.new()
+	sfx.name = "Sfx"
+	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
+	$Audio.add_child(sfx)
+	# V-01 世界揭开：盖在世界画面上、座舱画面下的一层
+	_reveal = ColorRect.new()
+	_reveal.name = "RevealWipe"
+	_reveal.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_reveal.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var reveal_mat := ShaderMaterial.new()
+	reveal_mat.shader = load("res://shaders/reveal_wipe.gdshader")
+	_reveal.material = reveal_mat
+	world_rect.get_parent().add_child(_reveal)
+	world_rect.get_parent().move_child(_reveal, world_rect.get_index() + 1)
 	for sfx_name: String in ["crash", "explosion"]:   # 爆缸前的那一声"噔"按开发者要求去掉了，直接炸
 		var player := AudioStreamPlayer.new()
 		player.stream = EngineAudio.load_stream(WORLD_AUDIO_DIR + sfx_name + ".wav", false)
@@ -110,7 +129,7 @@ func _ready() -> void:
 	flow.name = "RunFlow"
 	exit_hint.get_parent().add_child(flow)
 	flow.setup(self, car, track, exit_hint, cockpit)
-	flow.enter_base()
+	flow.enter_title()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -120,6 +139,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		overlay.visible = not overlay.visible
 	elif event.is_action_pressed("debug_next_segment"):
 		if _fail_phase == FailPhase.NONE:
+			set_ignited_look(true)
 			_jump_to_next_section()
 			flow.debug_enter_run()
 	elif event.is_action_pressed("debug_fx_mode"):
@@ -165,12 +185,39 @@ func return_to_base() -> void:
 		cockpit.blown = false
 		engine_audio.rev_target = -1.0
 		(_sfx["explosion"] as AudioStreamPlayer).stop()
-		_set_drive_audio_muted(false)
+		_set_drive_audio_muted(not _minimap_on)
 	_flash = 1.0
 	_env_section = 0
 	env_director.apply(env_director.forest, 0.0)
 	scenery.set_environment(0)
 	flow.enter_base()
+
+
+## 回标题画面：和回大本营一样先收拾失败演出，然后进标题（窗外全黑）。
+func return_to_title() -> void:
+	return_to_base()
+	flow.enter_title()
+
+
+## 点火前后座舱和窗外的样子（6.8、8.3、9.4）。on = 已点火。
+func set_ignited_look(on: bool) -> void:
+	set_world_reveal(1.0 if on else -1.0)
+	cockpit_brightness = 1.0 if on else 0.15
+	cockpit.set_tach_brightness(1.0 if on else 0.3)
+	cockpit.stickers_lit = not on
+	cockpit.show_gear = on
+	cockpit.needle_override = -1.0 if on else 0.0
+	_minimap_on = on
+	set_drive_audio_on(on)
+
+
+func set_world_reveal(open: float) -> void:
+	(_reveal.material as ShaderMaterial).set_shader_parameter("open", open)
+	_reveal.visible = open < 1.0
+
+
+func set_drive_audio_on(on: bool) -> void:
+	_set_drive_audio_muted(not on)
 
 
 func clear_section_time() -> void:
@@ -192,7 +239,7 @@ func _update_environment() -> void:
 		_env_section = want
 		env_director.transition_to(env_director.profile_for_section(want), _section_heading(want))
 		scenery.set_environment(want)
-	cockpit.set_light(env_director.light_color, 1.0)
+	cockpit.set_light(env_director.light_color, cockpit_brightness)
 
 
 ## 光向参照的车头方向：森林用出库方向（正北），其余用该区段起点线处的车头方向（8.2）。
@@ -317,7 +364,7 @@ func _set_drive_audio_muted(muted: bool) -> void:
 ## 9.5：小地图每帧按座舱里的锚点重新定位和缩放，所以始终贴着方向盘上缘。
 func _place_minimap() -> void:
 	var anchor := cockpit.minimap_anchor.global_position
-	if cockpit_camera.is_position_behind(anchor):
+	if not _minimap_on or cockpit_camera.is_position_behind(anchor):
 		minimap_rect.visible = false
 		return
 	minimap_rect.visible = true
