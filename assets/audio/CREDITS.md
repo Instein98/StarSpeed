@@ -28,3 +28,8 @@
 - 重新生成：`python -I tools/make_engine_layers.py`
 
 `limiter.ogg` 是早先合成的断油声，现在不再使用（断油由引擎声自己的断续表现）。
+
+## 代码合成的声音（本项目自己生成，没有外部素材）
+
+- `music/star.ogg`、`music/ambient.ogg`：`tools/make_music.py` 合成的临时音乐。
+- `sfx/*.wav`：`tools/make_sfx.py` 合成的音效（起动机、菜单、字幕、换挡、回火、贴纸、白化）。

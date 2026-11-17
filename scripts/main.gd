@@ -92,6 +92,10 @@ func _ready() -> void:
 	overlay.set("car", car)
 	overlay.set("track", track)
 	overlay.visible = false
+	var music := Music.new()
+	music.name = "Music"
+	music.main = self
+	$Audio.add_child(music)
 	sfx = Sfx.new()
 	sfx.name = "Sfx"
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
