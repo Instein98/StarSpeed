@@ -53,6 +53,7 @@ var _fail_pre_time := FAIL_PRE_TIME
 var _sfx: Dictionary = {}
 var scenery: Scenery
 var sfx: Sfx
+var tutorial: Tutorial
 ## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
 var cockpit_brightness := 1.0
 var _minimap_on := true
@@ -103,6 +104,9 @@ func _ready() -> void:
 	sfx.name = "Sfx"
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
 	$Audio.add_child(sfx)
+	tutorial = Tutorial.new()
+	tutorial.name = "Tutorial"
+	add_child(tutorial)
 	var world_audio := WorldAudio.new()
 	world_audio.name = "WorldAudio"
 	$Audio.add_child(world_audio)
@@ -140,6 +144,7 @@ func _ready() -> void:
 	flow.name = "RunFlow"
 	exit_hint.get_parent().add_child(flow)
 	flow.setup(self, car, track, exit_hint, cockpit)
+	tutorial.setup(self, car, flow)
 	flow.enter_title()
 
 

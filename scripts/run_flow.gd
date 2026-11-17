@@ -351,6 +351,8 @@ func _leave_base() -> void:
 	_car.set_exit_armed(to_main)
 	_car.mode = CarSim.Mode.DRIVE
 	state = State.RUN if to_main else State.PRACTICE
+	if not to_main:
+		_main.tutorial.start()
 	_update_hint()
 
 
@@ -536,7 +538,7 @@ func _draw_frame() -> void:
 	if state == State.IGNITE:
 		# 点火提示：居中 y = 290，金黄，每秒闪一次；长按期间常亮
 		if _ignite_hold > 0.0 or _blink < 0.5:
-			_text_center("长按 [空格] 点火", 290.0, 24, COL_GOLD)
+			_text_center("长按 [%s] 点火" % SaveData.key_label("throttle"), 290.0, 24, COL_GOLD)
 		return
 	if state == State.IGNITING:
 		return

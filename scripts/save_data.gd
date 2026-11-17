@@ -6,6 +6,8 @@ signal changed
 
 const PATH := "user://save.json"
 const REBINDABLE: Array[String] = ["throttle", "shift_up", "shift_down"]
+## 存档里的开关：开场看过、教学完成、降档提示出现过、降档提示灯辅助（R-06a）
+const FLAGS: Array[String] = ["intro_seen", "tutorial_done", "tip_downshift_shown", "assist_downshift_lamp"]
 
 ## keys 存物理键码；默认值就是 project.godot 里 Input Map 的默认键。
 var data: Dictionary = {
@@ -14,6 +16,10 @@ var data: Dictionary = {
 	"best_total": -1.0,                  # 三个区段连着跑完的最好总用时（秒），−1 = 还没有
 	"best_sections": [-1.0, -1.0, -1.0], # 各区段的最好用时
 	"best_medals": [0, 0, 0],            # 各区段拿过的最高贴纸等级：0 没有、1 塑料、2 铜、3 银、4 金
+	"intro_seen": false,
+	"tutorial_done": false,
+	"tip_downshift_shown": false,
+	"assist_downshift_lamp": false,
 }
 
 
@@ -54,11 +60,38 @@ func _load() -> void:
 	var medals: Variant = (parsed as Dictionary).get("best_medals")
 	if medals is Array and (medals as Array).size() == 3:
 		data["best_medals"] = [int(medals[0]), int(medals[1]), int(medals[2])]
+	for flag: String in FLAGS:
+		if (parsed as Dictionary).has(flag):
+			data[flag] = bool((parsed as Dictionary)[flag])
 	var keys: Variant = (parsed as Dictionary).get("keys")
 	if keys is Dictionary:
 		for action in REBINDABLE:
 			if (keys as Dictionary).has(action):
 				data["keys"][action] = int(keys[action])
+
+
+## 界面上显示的键名（9.10）：空格显示"空格"，方向键显示箭头，字母数字显示大写，其余用引擎的英文键名。
+## 一个动作绑了几个键时用" / "连起来。
+func key_label(action: String) -> String:
+	var names := PackedStringArray()
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			var code := (ev as InputEventKey).physical_keycode
+			if code == 0:
+				code = (ev as InputEventKey).keycode
+			names.append(key_name(code))
+	return " / ".join(names)
+
+
+static func key_name(code: int) -> String:
+	match code:
+		KEY_SPACE: return "空格"
+		KEY_UP: return "↑"
+		KEY_DOWN: return "↓"
+		KEY_LEFT: return "←"
+		KEY_RIGHT: return "→"
+		KEY_ENTER, KEY_KP_ENTER: return "回车"
+	return OS.get_keycode_string(code).to_upper()
 
 
 func _current_key(action: String) -> int:
