@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnvironmentProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_name = "城市·霓虹夜"
+palette = PackedColorArray(0.105882, 0.133333, 0.200000, 1, 0.058824, 0.078431, 0.141176, 1, 0.937255, 0.290196, 0.184314, 1, 1.000000, 0.788235, 0.235294, 1, 0.968627, 0.925490, 0.831373, 1, 1.000000, 1.000000, 1.000000, 1, 0.290196, 0.321569, 0.384314, 1, 0.211765, 0.239216, 0.294118, 1, 0.164706, 0.101961, 0.290196, 1, 0.478431, 0.164706, 0.415686, 1, 1.000000, 0.309804, 0.690196, 1, 0.211765, 0.878431, 0.878431, 1, 0.168627, 0.207843, 0.313725, 1, 0.541176, 0.576471, 0.639216, 1, 0.227451, 0.254902, 0.313725, 1, 1.000000, 0.878431, 0.541176, 1)
+sky_top = Color(0.164706, 0.101961, 0.290196, 1)
+sky_bottom = Color(0.478431, 0.164706, 0.415686, 1)
+fog_color = Color(0.478431, 0.164706, 0.415686, 1)
+light_azimuth_deg = 0.0
+light_elevation_deg = 20.0
+light_color = Color(1.000000, 0.878431, 0.541176, 1)
+brightness = 0.4
+night_emissive = Color(1.000000, 0.878431, 0.541176, 1)
+night_mode = true
+ground_color = Color(0.227451, 0.254902, 0.313725, 1)
+cloud_count = 0
+far_ring_variant = "c"
+gold_fx = "neon"

@@ -39,6 +39,9 @@ var _batches: Dictionary = {}       ## 模型键 → { 格子 → Array[Transfor
 var _meshes: Dictionary = {}
 var _rings: Array[Node3D] = []      ## 每个区段环境一组：远景环 + 云
 var _clouds: Array[Node3D] = []
+var _gold_fx: Array[GoldFx] = [null, null, null]
+var _neon: Node3D
+var _buildings: Array = []        ## [变换, 变体] —— 金牌版城市的霓虹招牌用
 var _env := 0
 
 
@@ -53,16 +56,25 @@ func build(p_track: Track, p_material: Material) -> void:
 	_place_ice()
 	_place_city()
 	_flush()
-	for i in 3:
+	for i in 6:
 		_build_sky_set(i)
+	_build_neon()
 	set_environment(0)
 
 
-## 切到第 index 个区段环境的远景环和云（0 森林、1 冰原、2 城市）。
-func set_environment(index: int) -> void:
-	_env = index
+## 切到第 index 个区段环境的远景环和云（0 森林、1 冰原、2 城市）；gold = 金牌版（6.6）。
+func set_environment(index: int, gold := false) -> void:
+	_env = index + (3 if gold else 0)
 	for i in _rings.size():
-		_rings[i].visible = i == index
+		_rings[i].visible = i == _env
+	if _neon != null:
+		_neon.visible = _env == 5
+
+
+## 极光的方位以区段起点线处的车头方向为准（度，0 = 北）。
+func set_gold_heading(section: int, heading_deg: float) -> void:
+	if _gold_fx.size() > section and _gold_fx[section] != null:
+		_gold_fx[section].heading_deg = heading_deg
 
 
 func _process(delta: float) -> void:
@@ -72,7 +84,8 @@ func _process(delta: float) -> void:
 	var p := cam.global_position
 	var ring := _rings[_env]
 	ring.global_position = Vector3(p.x, 0.0, p.z)
-	_clouds[_env].rotation.y += deg_to_rad(CLOUD_TURN_DEG_PER_MIN / 60.0) * delta
+	if _env < _clouds.size():
+		_clouds[_env].rotation.y += deg_to_rad(CLOUD_TURN_DEG_PER_MIN / 60.0) * delta
 
 
 # ───────────────────────── 查询"附近有没有路" ─────────────────────────
@@ -391,6 +404,7 @@ func _place_city() -> void:
 			if _road_distance(_flat(center + basis * (corner * 0.5))) < 14.0:
 				return
 		placed.append([c2, radius])
+		_buildings.append([Transform3D(basis, center), variant, w - 2.0, d - 2.0])
 		_add("bld:%d:%d" % [variant, rng.randi_range(0, SceneryModels.BUILDING_COLORS.size() - 1)], Transform3D(basis, center))
 	# 大道两侧：14–18 m 每 24 m，只用 150 m 那一种，形成峡谷
 	var s := avenue[0] + 12.0
@@ -441,13 +455,21 @@ func _build_sky_set(index: int) -> void:
 	add_child(root)
 	_rings.append(root)
 	var ring := MeshInstance3D.new()
-	ring.mesh = _far_ring(index)
+	ring.mesh = _far_ring(index % 3, index >= 3)
 	ring.material_override = material
 	ring.extra_cull_margin = 10000.0
 	root.add_child(ring)
 	var clouds := Node3D.new()
 	root.add_child(clouds)
 	_clouds.append(clouds)
+	if index >= 3:
+		# 金牌版：夜里没有云，换成氛围物（城市的霓虹招牌挂在楼上，另外建）
+		var fx := GoldFx.new()
+		fx.kind = ["meteor", "aurora", ""][index - 3]
+		fx.material_override = material
+		root.add_child(fx)
+		_gold_fx[index - 3] = fx
+		return
 	var mi := MeshInstance3D.new()
 	mi.mesh = _clouds_mesh(index)
 	mi.material_override = material
@@ -456,7 +478,7 @@ func _build_sky_set(index: int) -> void:
 
 
 ## 单层环形剪影，半径 3800 m，轮廓高度 150–500 m。0 圆缓的蓝色山脊，1 尖锐的白色雪峰，2 城市天际线。
-func _far_ring(index: int) -> ArrayMesh:
+func _far_ring(index: int, night := false) -> ArrayMesh:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 5001 + index
 	var k := MeshKit.new()
@@ -483,6 +505,8 @@ func _far_ring(index: int) -> ArrayMesh:
 						i += 1
 	# 自发光：远景环是一整圈朝内的竖面，按两级明暗会有半圈落到暗面，远山的蓝色压色板后会变成暗绿
 	var col: Color = [SceneryModels.COL_MOUNTAIN, SceneryModels.COL_SNOW_SHADE, SceneryModels.COL_MOUNTAIN][index]
+	if night:
+		col = [Color("3a5a80"), Color("3a5a80"), Color("2b3550")][index]
 	col.a = 0.0
 	for i in n:
 		var a0 := TAU * i / n
@@ -524,3 +548,37 @@ func _clouds_mesh(index: int) -> ArrayMesh:
 			var b1 := center + right * ((float(i + 1) / (pts.size() - 1)) - 0.5) * w
 			k.quad(b0, b1, pts[i + 1], pts[i], col)
 	return k.build()
+
+
+# ───────────────────────── 金牌版城市的霓虹招牌（A-62c） ─────────────────────────
+
+## 每栋楼的临街面挂 1–2 块：竖条挂在楼高的 30%–60% 处，横条挂在离地 12 m 处，左右位置随机；粉或青，自发光。
+func _build_neon() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 6603
+	var k := MeshKit.new()
+	var pink := Color(1.0, 0.31, 0.69, 0.0)
+	var cyan := Color(0.212, 0.878, 0.878, 0.0)
+	for b: Array in _buildings:
+		var xf: Transform3D = b[0]
+		var h: float = SceneryModels.BUILDING_HEIGHTS[int(b[1])]
+		var w: float = b[2]
+		var d: float = b[3]
+		for n in rng.randi_range(1, 2):
+			var col := pink if rng.randf() < 0.5 else cyan
+			var x := rng.randf_range(-w * 0.35, w * 0.35)
+			var center: Vector3
+			var size: Vector3
+			if rng.randf() < 0.5:
+				size = Vector3(1.6, h * 0.3 * rng.randf_range(0.6, 1.0), 0.4)
+				center = Vector3(x, h * rng.randf_range(0.3, 0.6), -d * 0.5 - 0.4)
+			else:
+				size = Vector3(rng.randf_range(6.0, 10.0), 2.0, 0.4)
+				center = Vector3(x, 12.0, -d * 0.5 - 0.4)
+			k.box(xf * center, size, col, xf.basis.get_euler().y)
+	_neon = MeshInstance3D.new()
+	_neon.name = "Neon"
+	_neon.mesh = k.build()
+	_neon.material_override = material
+	_neon.visible = false
+	add_child(_neon)

@@ -2,7 +2,7 @@ class_name EnvironmentDirector
 extends Node
 ## 环境配置的应用（规格 8.2、8.3、11.2、11.4）。
 ## 森林、冰原、城市三套配置；越过区段起点线时 2 秒过渡：天空、雾、光线性过渡，色板按抖动阈值溶解（8.2）。
-## 金牌版环境还没做。
+## 金牌版环境（6.6）：拿过金牌的区段换成流星夜 / 极光 / 霓虹夜；出库路和环道始终是森林白天版。
 
 const FLAT2TONE := preload("res://shaders/flat2tone.gdshader")
 const SKY_SHADER := preload("res://shaders/sky_gradient.gdshader")
@@ -10,6 +10,7 @@ const SKY_SHADER := preload("res://shaders/sky_gradient.gdshader")
 @export var forest: EnvironmentProfile
 var ice: EnvironmentProfile
 var city: EnvironmentProfile
+var gold: Array[EnvironmentProfile] = []
 
 const TRANSITION_TIME := 2.0
 
@@ -33,6 +34,8 @@ func _ready() -> void:
 	ice = load("res://data/env_ice.tres") as EnvironmentProfile
 	city = load("res://data/env_city.tres") as EnvironmentProfile
 	assert(ice != null and city != null, "冰原 / 城市环境配置读不到")
+	for key: String in ["forest_gold", "ice_gold", "city_gold"]:
+		gold.append(load("res://data/env_%s.tres" % key) as EnvironmentProfile)
 
 
 func _init() -> void:
@@ -58,7 +61,9 @@ func setup(world_env: WorldEnvironment, post: ShaderMaterial) -> void:
 
 
 ## 第 index 个区段的配置（0 森林、1 冰原、2 城市）。
-func profile_for_section(index: int) -> EnvironmentProfile:
+func profile_for_section(index: int, gold_version := false) -> EnvironmentProfile:
+	if gold_version:
+		return gold[clampi(index, 0, 2)]
 	return [forest, ice, city][clampi(index, 0, 2)]
 
 

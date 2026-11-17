@@ -82,6 +82,8 @@ func _ready() -> void:
 	scenery.name = "Scenery"
 	track.add_child(scenery)
 	scenery.build(track, env_director.world_material)
+	for i in 3:
+		scenery.set_gold_heading(i, rad_to_deg(_section_heading(i)))
 	minimap_rect.texture = minimap.get_texture()
 	cockpit.set_light(env_director.forest.light_color, 1.0)
 
@@ -211,6 +213,7 @@ func return_to_base() -> void:
 	cockpit.stickers.zoom = 1.0
 	whiteout = -1.0
 	_flash = 1.0
+	_env_gold = false
 	_env_section = 0
 	env_director.apply(env_director.forest, 0.0)
 	scenery.set_environment(0)
@@ -226,6 +229,7 @@ func ending_in_garage() -> void:
 	car.mode = CarSim.Mode.LOCKED
 	clear_section_time()
 	_env_section = 0
+	_env_gold = false
 	env_director.apply(env_director.forest, 0.0)
 	scenery.set_environment(0)
 	_minimap_on = false
@@ -270,16 +274,20 @@ func clear_section_time() -> void:
 # ───────────────────────── 区段环境 ─────────────────────────
 
 var _env_section := 0
+var _env_gold := false
 
 ## 主赛道上按所在区段切环境（越过区段起点线时 2 秒过渡）；出库路、环道、车库外都是森林。
 func _update_environment() -> void:
 	var want := 0
+	var gold := false
 	if car.path_id == Track.PATH_MAIN:
 		want = track.section_index_at(car.s)
-	if want != _env_section:
+		gold = int((SaveData.data.get("best_medals", [0, 0, 0]) as Array)[want]) >= 4
+	if want != _env_section or gold != _env_gold:
 		_env_section = want
-		env_director.transition_to(env_director.profile_for_section(want), _section_heading(want))
-		scenery.set_environment(want)
+		_env_gold = gold
+		env_director.transition_to(env_director.profile_for_section(want, gold), _section_heading(want))
+		scenery.set_environment(want, gold)
 	cockpit.set_light(env_director.light_color, cockpit_brightness)
 
 
