@@ -93,7 +93,9 @@ extends Resource
 @export var t52_lookahead_seconds: float
 @export var t52_lookahead_min_m: float
 @export var t52_lookahead_max_m: float
-@export var t53_forest_thresholds: PackedFloat32Array    ## 金 / 银 / 铜（秒）
+## 金 / 银 / 铜（秒）。2026-11-16 按开发者第一次完整跑的成绩（73.1 / 84.7 / 85.6 秒）校准：
+## 金 = 最好成绩 × 1.03，银、铜与金的比例沿用规格（约 1.09、1.24）
+@export var t53_forest_thresholds: PackedFloat32Array
 @export var t53_ice_thresholds: PackedFloat32Array
 @export var t53_city_thresholds: PackedFloat32Array
 @export var t54_entry_speed_kmh: PackedFloat32Array      ## 森林 / 冰原 / 城市

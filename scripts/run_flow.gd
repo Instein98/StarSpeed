@@ -26,6 +26,8 @@ var paused := false
 var section_times: Array[float] = [-1.0, -1.0, -1.0]   ## 本局各区段用时，−1 = 没有
 var new_record := false
 var section_records: Array[bool] = [false, false, false]   ## 本局各区段是否刷新了历史最好
+var section_medals: Array[int] = [0, 0, 0]                  ## 本局各区段评到的贴纸等级
+var _cockpit: Cockpit
 ## 右上角显示的最近 3 个区段成绩：{name, time, record}，新的在下面；跨局保留
 var recent: Array[Dictionary] = []
 
@@ -45,7 +47,11 @@ func _ready() -> void:
 	_font = ThemeDB.fallback_font
 
 
-func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label) -> void:
+func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit: Cockpit) -> void:
+	_cockpit = p_cockpit
+	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
+	for i in 3:
+		_cockpit.stickers.set_tier(i, int(medals[i]))
 	_main = p_main
 	_car = p_car
 	_track = p_track
@@ -60,6 +66,7 @@ func enter_base() -> void:
 	_select = 0
 	section_times = [-1.0, -1.0, -1.0]
 	section_records = [false, false, false]
+	section_medals = [0, 0, 0]
 	new_record = false
 	_car.use_device_input = true
 	_car.set_exit_armed(false)
@@ -82,6 +89,7 @@ func debug_enter_run() -> void:
 	if state != State.RUN:
 		section_times = [-1.0, -1.0, -1.0]
 		section_records = [false, false, false]
+		section_medals = [0, 0, 0]
 	state = State.RUN
 	_car.use_device_input = true
 	_update_hint()
@@ -100,6 +108,15 @@ func section_done(index: int, seconds: float) -> void:
 		best_sections[index] = seconds
 		SaveData.data["best_sections"] = best_sections
 		SaveData.save()
+	# R-32 / R-33：按 T-53 评贴纸等级；高于存档里的最高等级就存档，挡风玻璃上的贴纸换掉并弹一下
+	var tier := medal_for(index, seconds)
+	section_medals[index] = tier
+	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
+	if tier > int(medals[index]):
+		medals[index] = tier
+		SaveData.data["best_medals"] = medals
+		SaveData.save()
+		_cockpit.stickers.set_tier(index, tier, true)
 	recent.append({"name": _track.section_names[index], "time": seconds, "record": record})
 	while recent.size() > RECENT_COUNT:
 		recent.pop_front()
@@ -123,6 +140,16 @@ func _finish_run() -> void:
 			new_record = true
 	SaveData.save()
 	_update_hint()
+
+
+## T-53：用时 ≤ 金 / 银 / 铜门槛分别是 4 / 3 / 2，跑完但更慢是 1（塑料）。
+static func medal_for(index: int, seconds: float) -> int:
+	var t := Tuning.d
+	var th: PackedFloat32Array = [t.t53_forest_thresholds, t.t53_ice_thresholds, t.t53_city_thresholds][index]
+	for k in 3:
+		if seconds <= th[k]:
+			return 4 - k
+	return 1
 
 
 func total_time() -> float:
@@ -246,7 +273,10 @@ func _draw_results() -> void:
 	var y := 195.0
 	for i in section_times.size():
 		var mine: float = section_times[i]
+		var medal: String = StickerDisplay.TIER_NAMES[section_medals[i]] if mine >= 0.0 else ""
 		_text_pair(_track.section_names[i], format_time(mine), y, 18, COL_RECORD if section_records[i] else COL_TEXT)
+		if medal != "":
+			_text_right(medal, GRID.x * 0.5 - 90.0, y, 14, COL_GOLD)
 		y += 30.0
 	y += 12.0
 	if section_times.has(-1.0):

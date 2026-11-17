@@ -13,6 +13,7 @@ var data: Dictionary = {
 	"keys": {},
 	"best_total": -1.0,                  # 三个区段连着跑完的最好总用时（秒），−1 = 还没有
 	"best_sections": [-1.0, -1.0, -1.0], # 各区段的最好用时
+	"best_medals": [0, 0, 0],            # 各区段拿过的最高贴纸等级：0 没有、1 塑料、2 铜、3 银、4 金
 }
 
 
@@ -50,6 +51,9 @@ func _load() -> void:
 	var best_sections: Variant = (parsed as Dictionary).get("best_sections")
 	if best_sections is Array and (best_sections as Array).size() == 3:
 		data["best_sections"] = [float(best_sections[0]), float(best_sections[1]), float(best_sections[2])]
+	var medals: Variant = (parsed as Dictionary).get("best_medals")
+	if medals is Array and (medals as Array).size() == 3:
+		data["best_medals"] = [int(medals[0]), int(medals[1]), int(medals[2])]
 	var keys: Variant = (parsed as Dictionary).get("keys")
 	if keys is Dictionary:
 		for action in REBINDABLE:

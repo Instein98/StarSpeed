@@ -124,7 +124,7 @@ func _ready() -> void:
 	flow = RunFlow.new()
 	flow.name = "RunFlow"
 	exit_hint.get_parent().add_child(flow)
-	flow.setup(self, car, track, exit_hint)
+	flow.setup(self, car, track, exit_hint, cockpit)
 	flow.enter_base()
 
 
@@ -155,6 +155,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(delta: float) -> void:
 	_place_minimap()
+	_update_environment()
 	_update_fail_sequence(delta)
 	_flash = maxf(0.0, _flash - delta / FLASH_TIME)
 	if _white_frames > 0:
@@ -181,6 +182,8 @@ func return_to_base() -> void:
 		(_sfx["explosion"] as AudioStreamPlayer).stop()
 		_set_drive_audio_muted(false)
 	_flash = 1.0
+	_env_section = 0
+	env_director.apply(env_director.forest, 0.0)
 	flow.enter_base()
 
 
@@ -188,6 +191,29 @@ func clear_section_time() -> void:
 	_time_label.text = ""
 	_timing_section = -1
 	_prev_main_s = -1.0
+
+
+# ───────────────────────── 区段环境 ─────────────────────────
+
+var _env_section := 0
+
+## 主赛道上按所在区段切环境（越过区段起点线时 2 秒过渡）；出库路、环道、车库外都是森林。
+func _update_environment() -> void:
+	var want := 0
+	if car.path_id == Track.PATH_MAIN:
+		want = track.section_index_at(car.s)
+	if want != _env_section:
+		_env_section = want
+		env_director.transition_to(env_director.profile_for_section(want), _section_heading(want))
+	cockpit.set_light(env_director.light_color, 1.0)
+
+
+## 光向参照的车头方向：森林用出库方向（正北），其余用该区段起点线处的车头方向（8.2）。
+func _section_heading(index: int) -> float:
+	if index == 0:
+		return 0.0
+	var f := -track.transform_at(Track.PATH_MAIN, track.section_start[index]).basis.z
+	return atan2(f.x, -f.z)
 
 
 # ───────────────────────── 区段计时 ─────────────────────────

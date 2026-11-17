@@ -60,6 +60,7 @@ var game_time := 0.0
 ## 爆缸演出中：指针打到表盘尽头并卡住，换挡提示灯常亮（7.3）
 const BLOWN_SWEEP_RPM_PER_SEC := 7000.0
 var blown := false
+var stickers: StickerDisplay
 
 var _needle_rpm := 0.0
 var _steer_deg := 0.0
@@ -91,6 +92,10 @@ func _ready() -> void:
 	for node in find_children("*", "MeshInstance3D", true, false):
 		(node as MeshInstance3D).material_override = material
 	_needle_rpm = Tuning.d.t03_idle_rpm
+	stickers = StickerDisplay.new()
+	stickers.name = "Stickers"
+	$WindshieldStickers.add_child(stickers)
+	stickers.setup(material, EYE)
 
 
 ## 光色取当前环境的光色；亮度点火前 0.15、点火后 1.0（阶段 5 接入）。
