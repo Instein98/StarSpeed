@@ -61,7 +61,9 @@ vec3 view_pos(vec2 uv, mat4 inv_proj) {
 // 加了雾的画面颜色（sRGB）
 vec3 scene(vec2 uv, mat4 inv_proj) {
 	vec3 col = to_srgb(texture(screen_tex, uv).rgb);
-	float z = -view_pos(uv, inv_proj).z;
+	// 按到摄像机的直线距离算雾（不是深度 z）：远景环在 3800 m 的圆上，用 z 的话画面两侧的远景环
+	// 深度不到 3600 m，会被雾整个吞掉，只有正前方一小段看得见
+	float z = length(view_pos(uv, inv_proj));
 	if (z < fog_cutoff) {
 		col = mix(col, fog_color, clamp((z - fog_start) / (fog_end - fog_start), 0.0, 1.0));
 	}

@@ -118,6 +118,16 @@ func section_index_at(s: float) -> int:
 	return 0
 
 
+## 一条路径的全部分段：每项 {label, start, end, kappa}（kappa 是原始曲率，左正右负，直道为 0）。
+func segments(path_id: int) -> Array[Dictionary]:
+	var pt := _pt[path_id]
+	var out: Array[Dictionary] = []
+	for i in pt.seg_count:
+		out.append({"label": pt.data.seg_label[i], "start": pt.seg_start[i], "end": pt.seg_start[i + 1],
+				"kappa": pt.seg_kappa[i]})
+	return out
+
+
 ## 所在分段的规格编号（如 "F15"）。
 func segment_label_at(path_id: int, s: float) -> String:
 	var pt := _pt[path_id]

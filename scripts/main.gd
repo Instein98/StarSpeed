@@ -2,7 +2,6 @@ extends Node
 ## 启动时把各节点互相连好；处理 F2 – F4（规格 11.4）。
 ## 临时写在这里、阶段 5 迁到 run_director.gd 的东西：R-24 原地恢复、F4 瞬移、跑完尾段回车库起点、
 ## 失败演出、驶出开关。
-## 阶段 9 删除的东西：路两侧的测试方块。
 
 const RECOVER_RPM_MIN := 4000.0   ## R-24
 const RECOVER_RPM_MAX := 7000.0
@@ -18,23 +17,6 @@ const WORLD_AUDIO_DIR := "res://assets/audio/world/"
 const MINIMAP_VIEW_WIDTH := 0.26  ## 9.5：小地图在锚点处的视宽度相当于 0.26 m
 ## 9.5 给的矩形 (530, 285) – (750, 400) 里，锚点 (0.60, 0, −0.01) 的投影落在自上而下约 73% 处
 const MINIMAP_ANCHOR_V := 0.727
-
-# 测试方块（阶段 2 – 8 的临时参照物）。规格写每 30 m 一个；开发者试玩后觉得没有速度感，
-# 改成每 10 m 一个、高矮不一（接近阶段 9 森林近带"每侧每 8 m 一棵树"的密度）。
-const TEST_CUBE_STEP := 10
-const TEST_CUBE_HEIGHTS: Array[float] = [1.0, 2.5, 1.5, 4.0, 1.0, 3.0]
-const TEST_CUBE_SIZE := 2.0
-const TEST_CUBE_OFFSET := 10.0
-const TEST_CUBE_CLEAR := 9.0      ## 方块中心离任何赛道中心线至少 9 m（路面半宽 6 m + 方块半宽 1 m + 余量）
-## 岔路口、并入口：附近有另一条方向不同的路时，方块离那条路的中心线至少 30 m。
-## 否则两条路之间的夹角里会立着一排方块，从车里看就像堆在弯道上。
-const TEST_CUBE_JUNCTION_CLEAR := 30.0
-const TEST_CUBE_SAME_ROAD := 120.0     ## 同一条路径上沿路相隔不到 120 m 的算"自己这段路"
-const TEST_CUBE_PARALLEL_DOT := 0.985   ## 两条路方向相差 10° 以内算同一条路的延续
-const TEST_CUBE_COLORS: Array[Color] = [
-	Color("ef4a2f"), Color("ffc93c"), Color("f7ecd4"), Color("2f9e6a"),
-	Color("8a6a4a"), Color("6f9fc0"), Color("23805a"), Color("ffffff"),
-]
 
 @onready var car: CarSim = $CarSim
 @onready var world_viewport: SubViewport = $WorldViewport
@@ -69,7 +51,7 @@ var _fail_time := 0.0
 var _fail_speed := 0.0
 var _fail_pre_time := FAIL_PRE_TIME
 var _sfx: Dictionary = {}
-var _cube_colors: Array[Color] = []
+var scenery: Scenery
 # 区段计时：过了区段起点线开始计，过终点线时把用时显示在右上角，直到下一个区段跑完
 var _timing_section := -1
 var _section_time := 0.0
@@ -87,7 +69,10 @@ func _ready() -> void:
 
 	env_director.setup(world_env, world_post.get_surface_override_material(0) as ShaderMaterial)
 	track.set_material(env_director.world_material)
-	_spawn_test_cubes()
+	scenery = Scenery.new()
+	scenery.name = "Scenery"
+	track.add_child(scenery)
+	scenery.build(track, env_director.world_material)
 	minimap_rect.texture = minimap.get_texture()
 	cockpit.set_light(env_director.forest.light_color, 1.0)
 
@@ -184,6 +169,7 @@ func return_to_base() -> void:
 	_flash = 1.0
 	_env_section = 0
 	env_director.apply(env_director.forest, 0.0)
+	scenery.set_environment(0)
 	flow.enter_base()
 
 
@@ -205,6 +191,7 @@ func _update_environment() -> void:
 	if want != _env_section:
 		_env_section = want
 		env_director.transition_to(env_director.profile_for_section(want), _section_heading(want))
+		scenery.set_environment(want)
 	cockpit.set_light(env_director.light_color, 1.0)
 
 
@@ -263,7 +250,7 @@ func _on_car_failed(kind: int) -> void:
 	_fail_phase = FailPhase.PRE
 	_fail_time = 0.0
 	if kind == CarSim.Fail.OFF_TRACK:
-		# 失败 1：车已经滑到路边那排方块上了，立刻撞击、爆炸（滑出去的过程发生在失败之前）
+		# 失败 1：车已经滑到路边的护栏上了，立刻撞击、爆炸（滑出去的过程发生在失败之前）
 		car.mode = CarSim.Mode.LOCKED
 		_fail_pre_time = 0.0
 	else:
@@ -398,81 +385,3 @@ func _jump_to_next_section() -> void:
 			t.t54_entry_speed_kmh[next] * CarSim.KMH, t.t54_entry_gear[next])
 	_timing_section = -1
 	_prev_main_s = -1.0
-
-
-## 第 12 节阶段 2：路两侧的彩色测试方块（阶段 9 删除）。
-## 离任何一条赛道中心线不足 TEST_CUBE_CLEAR 的不放；附近有方向不同的另一条路（岔路口、并入口）时，
-## 离那条路不足 TEST_CUBE_JUNCTION_CLEAR 的也不放。
-func _spawn_test_cubes() -> void:
-	# 先把所有中心线采样点（位置 + 方向）放进网格，方便查"附近有没有路"
-	var cell := TEST_CUBE_JUNCTION_CLEAR
-	var grid: Dictionary = {}
-	for p in 3:
-		var s := 0.0
-		while s <= track.length(p):
-			var xf := track.transform_at(p, s)
-			var c := xf.origin
-			var d := -xf.basis.z
-			var key := Vector2i(floori(c.x / cell), floori(c.z / cell))
-			if not grid.has(key):
-				grid[key] = []
-			# 注意：这里必须用 Array。PackedArray 经 `as` 转型后 append 改的是副本，网格会一直是空的
-			# （之前"方块不压路面"的检查因此从来没有生效过）。
-			(grid[key] as Array).append([Vector2(c.x, c.z), Vector2(d.x, d.z).normalized(), p, s])
-			s += 2.0
-	var xforms: Array[Transform3D] = []
-	var index := 0
-	for p in 3:
-		var s := float(TEST_CUBE_STEP)
-		while s < track.length(p):
-			var xf := track.transform_at(p, s)
-			var c := xf.origin
-			var fwd := -xf.basis.z
-			var r := track.right_at(p, s)
-			for side: float in [-1.0, 1.0]:
-				index += 1
-				var tall: float = TEST_CUBE_HEIGHTS[(index / 2) % TEST_CUBE_HEIGHTS.size()]
-				var pos := c + r * side * TEST_CUBE_OFFSET + Vector3.UP * TEST_CUBE_SIZE * 0.5 * tall
-				if _near_road(grid, cell, Vector2(pos.x, pos.z), Vector2(fwd.x, fwd.z).normalized(), p, s):
-					continue
-				xforms.append(Transform3D(Basis.from_scale(Vector3(1.0, tall, 1.0)), pos))
-				_cube_colors.append(TEST_CUBE_COLORS[(index / 2) % TEST_CUBE_COLORS.size()])
-			s += TEST_CUBE_STEP
-	var box := BoxMesh.new()
-	box.size = Vector3.ONE * TEST_CUBE_SIZE
-	var mm := MultiMesh.new()
-	mm.transform_format = MultiMesh.TRANSFORM_3D
-	mm.use_colors = true
-	mm.mesh = box
-	mm.instance_count = xforms.size()
-	for i in xforms.size():
-		mm.set_instance_transform(i, xforms[i])
-		mm.set_instance_color(i, _cube_colors[i])
-	var node := MultiMeshInstance3D.new()
-	node.name = "TestCubes"
-	node.multimesh = mm
-	node.material_override = env_director.world_material
-	track.add_child(node)
-
-
-## point 处的方块（属于路径 path 的里程 at_s，那里路的方向是 dir）是否离某条路太近。
-## "另一条路"指别的路径，或同一条路径上沿路相隔 TEST_CUBE_SAME_ROAD 以上的部分；
-## 同一个弯自己的前后段不算，否则急弯两侧的方块会被全部清掉。
-func _near_road(grid: Dictionary, cell: float, point: Vector2, dir: Vector2, path: int, at_s: float) -> bool:
-	var base := Vector2i(floori(point.x / cell), floori(point.y / cell))
-	for dx in range(-1, 2):
-		for dy in range(-1, 2):
-			var key := base + Vector2i(dx, dy)
-			if not grid.has(key):
-				continue
-			for q: Array in grid[key]:
-				var dist := (q[0] as Vector2).distance_to(point)
-				if dist < TEST_CUBE_CLEAR:
-					return true
-				if dist >= TEST_CUBE_JUNCTION_CLEAR:
-					continue
-				if int(q[2]) == path and absf(float(q[3]) - at_s) < TEST_CUBE_SAME_ROAD:
-					continue
-				if absf((q[1] as Vector2).dot(dir)) < TEST_CUBE_PARALLEL_DOT:
-					return true
-	return false

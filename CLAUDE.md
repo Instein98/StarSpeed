@@ -49,10 +49,10 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上�
 - `data/tuning.tres`（类型 `scripts/tuning_data.gd`）：所有数值。**数值不要写死在脚本里**，加新数值就在这两个文件里加字段。脚本里用 `Tuning.d.<字段>` 读。`tNN_` 开头的对应规格的调参表 T-NN，其余是试玩后加的。
 - `data/engine_mix_default.json`：声音混合参数。
 - `data/track_access.tres`、`track_loop.tres`、`track_main.tres`：赛道分段表（直道 / 左弯 / 右弯、半径、角度、长度、坡度）。主赛道分森林、冰原、城市三个区段。
-- `scripts/car_sim.gd`：全部驾驶规则，不碰画面和声音。`scripts/track.gd`：由分段表生成路面和查询接口。`scripts/main.gd`：把各节点连起来，外加临时的失败演出、复位、测试方块。
+- `scripts/car_sim.gd`：全部驾驶规则，不碰画面和声音。`scripts/track.gd`：由分段表生成路面和查询接口。`scripts/main.gd`：把各节点连起来，外加临时的失败演出、复位。`scripts/scenery.gd` + `scenery_models.gd` + `mesh_kit.gd`：区段景物（代码生成的低多边形替身）和摆放。
 - `scripts/camera_rig.gd`（视野、震动、转向不足时的歪头）、`speed_fx.gd` + `shaders/post_world.gdshader`（景物拉线）、`cockpit.gd`（临时座舱和转速表）、`minimap.gd`、`engine_audio.gd`、`tire_audio.gd`、`explosion.gd`。
 - `tools/`：规则检查脚本和隐藏桌面启动器（带 `.gdignore`，不属于游戏）。
-- 没有 Blender 模型：座舱、仪表、路边景物全是引擎自带几何体的临时替身。路两侧的彩色方块是临时参照物。
+- 没有 Blender 模型：座舱、仪表是引擎自带几何体的临时替身；路边景物（松树、岩石、冰山、冰锥、冰拱门、楼房、龙门架、护栏、箭头牌、车库和基地、远景环、云）是 `scenery_models.gd` 用代码拼的低多边形替身，按规格 6.4–6.5 的摆放表放在 `scenery.gd` 里。
 
 ## 当前行为里和规格不一样的地方
 
@@ -75,7 +75,7 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上�
 ## 已知的坑
 
 - GDScript 里把字典里的 PackedArray 用 `as` 转型后 `append`，改的是副本。要原地追加就用普通 `Array`。
-- 岔路口、并入口附近不放测试方块（`main.gd` 的 `_near_road`），急弯自己的两侧要有。改这块后从正上方截图核对。
+- 护栏放在所有弯的外侧、离中心线 `slide_wall_m` + 0.8 m（打滑撞车的位置），岔路口和并入口附近按 5.4 的路口规则不放。改这块后截图核对。
 - 引擎声的四个转速层由 `tools/make_engine_layers.py` 从同一段真实录音生成（`tools/audio_src/` 里的自吸 V6 排气口录音，CC-BY 4.0），四层同源所以音色一致。开发者要的是"公认好听、让人兴奋的自吸跑车排气声"，并且各层必须一致；试过每层用不同车的录音（6000 转前后明显不连贯）和 muted.io 采样包里的录音（不够兴奋），都被否决了。音频来源和许可写在 `assets/audio/CREDITS.md`，用了别人的素材要在那里登记。
 - 新加了带 `class_name` 的脚本后，也要先跑一次 `--headless --import`，否则命令行运行会报找不到这个类型并卡住。
 - 替换音频文件后，Claude 自己跑 Godot 前要先执行一次 `--headless --import`，否则读到的还是旧的导入缓存。
