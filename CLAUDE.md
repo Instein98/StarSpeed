@@ -3,6 +3,7 @@
 车在轨道上跑（不能左右转向），玩家只控制油门、刹车、升降档。玩法核心是进弯前把车速降到弯道极限以下，以及在长直道和高速弯上体验极速。
 
 **先读 `STATUS.md`**：它记录了现在做到哪、和规格的差别、接下来要做什么。每完成一块就更新它。
+`QUESTIONS.md` 记录等开发者拍板的问题和临时做法。开发者让 Claude 自己连续做多项时：遇到需要决定的事先记到那里、按临时做法做或跳过，不要停下来等回答。
 
 和开发者用中文交流。开发者通过试玩给反馈，每一轮反馈改完都要提交一次 commit。
 
@@ -33,15 +34,16 @@ $cmd = '"D:\Software\Godot_v4.5.1\Godot_v4.5.1-stable_win64.exe" --path "D:\Clau
 
 ## 按键
 
-W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上下选择），回车 = 确定 / 回大本营，Esc = 暂停菜单。
+W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上下选择），回车 = 确定 / 回大本营，Esc = 暂停菜单。可以在键位设置里改（存档 `keys`）。
 调试：F2 重新读取调参文件，F3 调试面板，F4 跳到下一个区段起点，F5 轮换画面方案。
 
 ## 一局的流程（`scripts/run_flow.gd`）
 
+- 启动 → 标题画面（漆黑座舱）→ 开始：第一次先看邀请函和 5 条 CEO 字幕（油门键推进，存档 `intro_seen`）→ 长按油门点火（T-50）→ 窗外揭开 → 大本营。暂停菜单可回标题。
 - 大本营：车停在车库里，选"主赛道 计时赛"或"练习环道"，回车出发。两者共用出库路，在岔路口分开（计时赛直行，练习拐进环道）。
-- 计时赛：过森林起点线开始计时，三个区段连着跑；撞车、爆缸都是爆炸后退到弯前复位，计时不停。过城市终点线显示结算（各区段用时、总用时、是否新纪录），车自己刹停，回车回大本营。
-- 练习：在环道上随便绕圈，不计时，回车回大本营。
-- 最好成绩存在 `user://save.json`（`SaveData.data` 的 `best_total`、`best_sections`）。**Claude 的测试脚本如果会跑到结算，结束前要把这两项还原再 `save()`，不要把假成绩留在开发者的存档里。最稳妥的做法是开头 `var keep = SaveData.data.duplicate(true)`，结尾 `SaveData.data = keep; SaveData.save()`（包括 `best_medals`）。**
+- 计时赛：过森林起点线开始计时，三个区段连着跑；撞车、爆缸都是爆炸后退到弯前复位，计时不停。过森林、冰原终点线时贴纸特效和文字面板；过城市终点线进结尾（白化 → 车库 → 镜头抬向贴纸 → 结尾面板 + CEO 字幕），回车回大本营。
+- 练习：在环道上随便绕圈，不计时，回车回大本营。教学没完成时有 CEO 教学字幕（`tutorial.gd`，存档 `tutorial_done`）。
+- 最好成绩存在 `user://save.json`（`SaveData.data` 的 `best_total`、`best_sections`）。**Claude 的测试脚本如果会跑到结算，结束前要把这两项还原再 `save()`，不要把假成绩留在开发者的存档里。最稳妥的做法是开头 `var keep = SaveData.data.duplicate(true)`，结尾 `SaveData.data = keep; SaveData.save()`（包括 `best_medals`、`keys`、`lang`、`intro_seen`、`tutorial_done`）。测试脚本绝不能中途卡住不还原：headless 下不要 `await RenderingServer.frame_post_draw`（永远不会来），会改键位的测试要确保能走到还原那一步。这台电脑的系统语言是英文，存档里没有 `lang` 时新存档会变成英文。**
 - F4 调试瞬移会直接进入计时赛状态；没跑过的区段没有成绩，不记总成绩。
 
 ## 结构
@@ -52,7 +54,8 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上�
 - `data/track_access.tres`、`track_loop.tres`、`track_main.tres`：赛道分段表（直道 / 左弯 / 右弯、半径、角度、长度、坡度）。主赛道分森林、冰原、城市三个区段。
 - `scripts/car_sim.gd`：全部驾驶规则，不碰画面和声音。`scripts/track.gd`：由分段表生成路面和查询接口。`scripts/main.gd`：把各节点连起来，外加临时的失败演出、复位。`scripts/scenery.gd` + `scenery_models.gd` + `mesh_kit.gd`：区段景物（代码生成的低多边形替身）和摆放。
 - `scripts/camera_rig.gd`（视野、震动、转向不足时的歪头）、`speed_fx.gd` + `shaders/post_world.gdshader`（景物拉线）、`cockpit.gd`（临时座舱和转速表）、`minimap.gd`、`engine_audio.gd`、`tire_audio.gd`、`explosion.gd`。
-- `tools/`：规则检查脚本和隐藏桌面启动器（带 `.gdignore`，不属于游戏）。
+- `scripts/run_flow.gd`：全部流程状态和界面（标题、点火、邀请函、字幕条、大本营、暂停、键位设置、贴纸面板、结尾）。`tutorial.gd`、`music.gd`、`world_audio.gd`（风声、换挡、回火、掠过声、高速低通）、`sfx.gd`、`gold_fx.gd`（流星、极光）、`loc.gd` + `data/strings.csv`（中英文，键就是中文原文，界面文字一律 `Loc.t("中文")`）。
+- `tools/`：规则检查脚本、隐藏桌面启动器、`make_sfx.py` / `make_music.py`（代码合成的临时音效、音乐、风声），带 `.gdignore`，不属于游戏。
 - 没有 Blender 模型：座舱、仪表是引擎自带几何体的临时替身；路边景物（松树、岩石、冰山、冰锥、冰拱门、楼房、龙门架、护栏、箭头牌、车库和基地、远景环、云）是 `scenery_models.gd` 用代码拼的低多边形替身，按规格 6.4–6.5 的摆放表放在 `scenery.gd` 里。
 
 ## 当前行为里和规格不一样的地方
@@ -70,7 +73,7 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上�
 - 主赛道的设计原则（开发者 2026-11-15）：每个区段只有一处能到极速，一次最多持续 2–3 秒；能到 7 档高转（约 507 km/h 以上）的地方每个区段最多 3 处；区段交界的长直道可以快但不到极速。改赛道后用 `tools/track_design.gd` 量这几个数（headless 运行，会用刹车的模拟驾驶员）。
 - 区段起终点在地面上有黑白棋盘格线（`Track.gate_s`；森林的起点线在主赛道 150 m 处）。右上角显示最近 3 个区段的成绩；凡是刷新历史最好的时间，游戏里所有地方都用紫色显示（名字保持正常颜色）。
 - 爆缸没有单独的音效，直接爆炸。
-- 三个区段各有一套环境（`data/env_forest/ice/city.tres`），主赛道上过区段起点线时 2 秒过渡（`main.gd` 的 `_update_environment`）。
+- 三个区段各有一套环境（`data/env_forest/ice/city.tres`），主赛道上过区段起点线时 2 秒过渡（`main.gd` 的 `_update_environment`）。车在车库里用 `env_garage.tres`；存档里某区段是金牌时用该区段的金牌版（`env_*_gold.tres`）。
 - 奖牌贴纸：过区段终点线按 T-53 评定，高于存档等级就存档并在挡风玻璃右侧弹出（`sticker_display.gd`，存档键 `best_medals`）。贴纸盘面用自发光，否则背光面会把金色压成铜色。
 
 ## 已知的坑
