@@ -10,7 +10,7 @@ extends Control
 ## 选"开始"进点火提示，长按油门 T-50 秒点火：指针从 0 扫到 9000，点着后窗外揭开（V-01），然后到大本营。
 ## 这个节点在暂停时也照常运行（process_mode = ALWAYS），界面用 _draw 画在 960×540 的网格上。
 
-enum State { TITLE, IGNITE, IGNITING, BASE, PRACTICE, RUN, RESULTS }
+enum State { TITLE, IGNITE, IGNITING, BASE, PRACTICE, RUN, RESULTS, ENDING }
 
 const GRID := Vector2(960.0, 540.0)
 const COL_TEXT := Color("f7ecd4")
@@ -61,6 +61,21 @@ var _ignite_hold := 0.0
 var _ignite_time := 0.0
 var _need_release := false
 var _blink := 0.0
+## 本局各区段出发时的历史最高贴纸等级（结尾面板的"新纪录"标记用）
+var _start_medals: Array = [0, 0, 0]
+var _end_t := 0.0
+var _end_steps_done := 0
+## 字幕条（9.3）：说话人、文字、剩余秒数（< 0 = 一直显示到被替换）、是否要按键推进
+var caption_speaker := ""
+var caption_text := ""
+var caption_left := 0.0
+var caption_wait_key := false
+# 结尾（6.7）
+const END_WHITE := 1.0
+const END_TURN := 1.5
+const END_SWEEP_GAP := 0.5
+const END_CAPTION := "欢迎回来。这台车，只有你开得了。"
+const END_CAPTION_TIME := 5.0
 
 
 func _ready() -> void:
@@ -191,6 +206,127 @@ func _title_move(step: int) -> void:
 	_main.sfx.play("ui_move")
 
 
+# ───────────────────────── 结尾（6.7、9.9） ─────────────────────────
+
+func _update_ending(delta: float) -> void:
+	_end_t += delta
+	var t := _end_t
+	if _end_steps_done == 0:
+		# 1. 1.0 秒白化，引擎声在这 1.0 秒内淡出
+		_main.whiteout = clampf(t / END_WHITE, 0.0, 1.0)
+		AudioServer.set_bus_volume_db(AudioServer.get_bus_index(&"Engine"), linear_to_db(maxf(1.0 - t / END_WHITE, 0.001)))
+		if t >= END_WHITE:
+			_end_steps_done = 1
+			# 2. 白化结束：车停在车库里，座舱视角，世界画面正常显示
+			_main.call("ending_in_garage")
+			AudioServer.set_bus_volume_db(AudioServer.get_bus_index(&"Engine"), 0.0)
+	if _end_steps_done >= 1:
+		# 3. 座舱摄像机 1.5 秒内抬向贴纸，视野收到 40°，贴纸放大到 1.5 倍（smoothstep）
+		var k := smoothstep(0.0, 1.0, (t - END_WHITE) / END_TURN)
+		_main.camera_rig.ending_look = k
+		_cockpit.stickers.zoom = lerpf(1.0, 1.5, k)
+	var t_sweep := END_WHITE + END_TURN
+	if _end_steps_done == 1 and t >= t_sweep:
+		_end_steps_done = 2
+		_cockpit.stickers.sweep(0)
+		_main.sfx.play("shine")
+		show_caption("CEO", END_CAPTION, END_CAPTION_TIME)   # 4. 结尾面板和 CEO 字幕
+	if _end_steps_done == 2 and t >= t_sweep + END_SWEEP_GAP:
+		_end_steps_done = 3
+		_cockpit.stickers.sweep(1)
+		_main.sfx.play("shine")
+	if _end_steps_done == 3 and t >= t_sweep + END_SWEEP_GAP * 2.0:
+		_end_steps_done = 4
+		var last := section_medals.size() - 1
+		if section_times[last] >= 0.0 and section_medals[last] > int(_start_medals[last]):
+			_cockpit.stickers.set_tier(last, section_medals[last], true)
+			_main.sfx.play("sticker")
+		else:
+			_cockpit.stickers.sweep(last)
+			_main.sfx.play("shine")
+
+
+func _leave_ending() -> void:
+	_main.camera_rig.ending_look = 0.0
+	_cockpit.stickers.zoom = 1.0
+	_main.whiteout = -1.0
+	_main.sfx.play("ui_ok")
+	_main.call("return_to_base")
+
+
+func _draw_ending() -> void:
+	if _end_steps_done < 2:
+		return
+	var p := Vector2(60.0, 150.0)
+	_draw_panel(Rect2(p, Vector2(480.0, 250.0)))
+	draw_string(_font, Vector2(p.x + 20.0, 166.0 + 36.0), "绕地球一圈，完成", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 36, COL_GOLD)
+	var y := 230.0
+	for i in section_times.size():
+		var x := p.x + 20.0
+		draw_string(_font, Vector2(x, y + 24.0), _track.section_names[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_TEXT)
+		var mine: float = section_times[i]
+		draw_string(_font, Vector2(x + 80.0, y + 24.0), format_time(mine), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24,
+				COL_RECORD if section_records[i] else COL_TEXT)
+		if mine >= 0.0:
+			draw_string(_font, Vector2(x + 220.0, y + 24.0), StickerDisplay.TIER_NAMES[section_medals[i]] + "牌",
+					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_TEXT)
+			if section_medals[i] > int(_start_medals[i]):
+				draw_string(_font, Vector2(x + 300.0, y + 22.0), "新纪录", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
+		y += 36.0
+	if not section_times.has(-1.0):
+		draw_string(_font, Vector2(p.x + 20.0, 356.0), "总用时", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, COL_TEXT)
+		draw_string(_font, Vector2(p.x + 100.0, 356.0), format_time(total_time()), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16,
+				COL_RECORD if new_record else COL_TEXT)
+		if not new_record:
+			draw_string(_font, Vector2(p.x + 220.0, 356.0), "最好 " + format_time(float(SaveData.data.get("best_total", -1.0))),
+					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+	if _blink < 0.5:
+		draw_string(_font, Vector2(p.x + 20.0, 370.0 + 12.0 + 6.0), "回车 回大本营", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+
+
+## 9.1 的面板：深蓝黑填充，4 像素金黄边框，(4, 4) 更深蓝黑硬投影。
+func _draw_panel(r: Rect2, border := COL_GOLD, fill := COL_DARK) -> void:
+	draw_rect(Rect2(r.position + Vector2(4.0, 4.0), r.size), COL_DARKER)
+	draw_rect(r, border)
+	draw_rect(r.grow(-4.0), fill)
+
+
+# ───────────────────────── 字幕条（9.3） ─────────────────────────
+
+## 显示一条字幕；seconds < 0 = 一直显示到被替换或 hide_caption；wait_key = 右下角显示推进提示 ▼。
+func show_caption(speaker: String, text: String, seconds: float, wait_key := false) -> void:
+	caption_speaker = speaker
+	caption_text = text
+	caption_left = seconds
+	caption_wait_key = wait_key
+	_main.sfx.play("comm")
+
+
+func hide_caption() -> void:
+	caption_text = ""
+
+
+func _update_caption(delta: float) -> void:
+	if caption_text != "" and caption_left > 0.0:
+		caption_left -= delta
+		if caption_left <= 0.0:
+			caption_text = ""
+
+
+func _draw_caption() -> void:
+	if caption_text == "":
+		return
+	var r := Rect2(Vector2(120.0, 44.0), Vector2(720.0, 76.0))
+	_draw_panel(r)
+	if caption_speaker != "":
+		var w := _font.get_string_size(caption_speaker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12).x
+		draw_rect(Rect2(Vector2(128.0, 26.0), Vector2(w + 8.0, 18.0)), COL_GOLD)
+		draw_string(_font, Vector2(132.0, 40.0), caption_speaker, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DARK)
+	draw_multiline_string(_font, Vector2(136.0, 54.0 + 22.0), caption_text, HORIZONTAL_ALIGNMENT_LEFT, 690.0, 24, 2, COL_TEXT)
+	if caption_wait_key and _blink < 0.5:
+		draw_string(_font, Vector2(816.0, 112.0), "▼", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_GOLD)
+
+
 # ───────────────────────── 状态切换 ─────────────────────────
 
 ## 回大本营：车放回车库，停住，等玩家选。
@@ -210,6 +346,7 @@ func enter_base() -> void:
 
 
 func _leave_base() -> void:
+	_start_medals = (SaveData.data.get("best_medals", [0, 0, 0]) as Array).duplicate()
 	var to_main := _select == 0
 	_car.set_exit_armed(to_main)
 	_car.mode = CarSim.Mode.DRIVE
@@ -220,6 +357,7 @@ func _leave_base() -> void:
 ## 调试用（F4 瞬移到区段起点）：直接进入计时赛状态；没跑过的区段没有成绩，结算时不记纪录。
 func debug_enter_run() -> void:
 	if state != State.RUN:
+		_start_medals = (SaveData.data.get("best_medals", [0, 0, 0]) as Array).duplicate()
 		section_times = [-1.0, -1.0, -1.0]
 		section_records = [false, false, false]
 		section_medals = [0, 0, 0]
@@ -249,7 +387,8 @@ func section_done(index: int, seconds: float) -> void:
 		medals[index] = tier
 		SaveData.data["best_medals"] = medals
 		SaveData.save()
-		_cockpit.stickers.set_tier(index, tier, true)
+		if index < section_times.size() - 1:
+			_cockpit.stickers.set_tier(index, tier, true)   # 城市的贴纸在结尾画面里贴（6.7）
 	recent.append({"name": _track.section_names[index], "time": seconds, "record": record})
 	while recent.size() > RECENT_COUNT:
 		recent.pop_front()
@@ -258,7 +397,10 @@ func section_done(index: int, seconds: float) -> void:
 
 
 func _finish_run() -> void:
-	state = State.RESULTS
+	state = State.ENDING
+	_end_t = 0.0
+	_end_steps_done = 0
+	_main.sfx.play("whiteout")
 	# 结算时车自己刹停在终点线后的尾段上
 	_car.use_device_input = false
 	_car.set_throttle(false)
@@ -301,6 +443,11 @@ func _update_hint() -> void:
 # ───────────────────────── 输入 ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	if state == State.ENDING:
+		# 结尾时 Esc 不响应；面板出来后回车回大本营
+		if event.is_action_pressed("confirm") and _end_steps_done >= 2:
+			_leave_ending()
+		return
 	if state in [State.TITLE, State.IGNITE, State.IGNITING]:
 		# 9.1 / 11.2a：标题、点火提示时 Esc 不响应
 		if state == State.TITLE:
@@ -333,6 +480,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		State.PRACTICE, State.RESULTS:
 			if event.is_action_pressed("confirm"):
 				_main.call("return_to_base")
+		State.ENDING:
+			if event.is_action_pressed("confirm") and _end_steps_done >= 2:
+				_leave_ending()
 
 
 func _set_paused(on: bool) -> void:
@@ -361,6 +511,9 @@ func _pause_choose() -> void:
 func _process(delta: float) -> void:
 	_blink = fposmod(_blink + delta, 1.0)
 	if not paused:
+		_update_caption(delta)
+		if state == State.ENDING:
+			_update_ending(delta)
 		if state == State.IGNITE:
 			_update_ignite(delta)
 		elif state == State.IGNITING:
@@ -369,6 +522,14 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
+	_draw_frame()
+	_draw_caption()
+
+
+func _draw_frame() -> void:
+	if state == State.ENDING:
+		_draw_ending()
+		return
 	if state == State.TITLE:
 		_draw_title()
 		return

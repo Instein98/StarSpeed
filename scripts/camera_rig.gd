@@ -21,6 +21,11 @@ const FLY_ROLL_DEG_PER_SEC := 60.0
 var car: CarSim
 var track: Track
 var cockpit_camera: Camera3D
+## 结尾镜头（0 = 平常，1 = 抬向贴纸），已经过缓动曲线
+var ending_look := 0.0
+const ENDING_YAW_DEG := 28.0
+const ENDING_PITCH_DEG := 12.0
+const ENDING_FOV := 40.0
 
 ## 速度层级用的平滑车速（km/h，时间常数 T-41）
 var v_fx := 0.0
@@ -213,8 +218,12 @@ func _process(delta: float) -> void:
 				* Basis(Vector3.RIGHT, deg_to_rad((_pitch - nod) * COCKPIT_PITCH_SHARE)) \
 				* Basis(Vector3.BACK, deg_to_rad(-lean))   # 转向不足是头的动作，座舱也跟着歪
 		var cockpit_shake := Vector3(noise.x, noise.y, 0.0) * amp * MM
+		# 结尾（6.7 第 3 步）：座舱摄像机向右转 28°、向上抬 12°，视野收到 40°，让贴纸占画面右半部
+		if ending_look > 0.0:
+			cockpit_basis = cockpit_basis * Basis(Vector3.UP, deg_to_rad(-ENDING_YAW_DEG * ending_look)) \
+					* Basis(Vector3.RIGHT, deg_to_rad(ENDING_PITCH_DEG * ending_look))
 		cockpit_camera.transform = Transform3D(cockpit_basis, Cockpit.EYE + cockpit_shake)
-		cockpit_camera.fov = _fov_cockpit
+		cockpit_camera.fov = lerpf(_fov_cockpit, ENDING_FOV, ending_look)
 
 
 static func _k(delta: float, time_constant: float) -> float:

@@ -56,6 +56,9 @@ var sfx: Sfx
 ## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
 var cockpit_brightness := 1.0
 var _minimap_on := true
+var _ignited := true
+## ≥ 0 时全屏白化到这个不透明度（结尾 6.7 第 1 步）
+var whiteout := -1.0
 var _reveal: ColorRect
 # 区段计时：过了区段起点线开始计，过终点线时把用时显示在右上角，直到下一个区段跑完
 var _timing_section := -1
@@ -171,7 +174,9 @@ func _process(delta: float) -> void:
 	_update_environment()
 	_update_fail_sequence(delta)
 	_flash = maxf(0.0, _flash - delta / FLASH_TIME)
-	if _white_frames > 0:
+	if whiteout >= 0.0:
+		fullscreen_fade.color = Color(1.0, 1.0, 1.0, whiteout)
+	elif _white_frames > 0:
 		_white_frames -= 1
 		fullscreen_fade.color = Color(1.0, 1.0, 1.0, 1.0)
 	elif _red_frames > 0:
@@ -193,12 +198,32 @@ func return_to_base() -> void:
 		cockpit.blown = false
 		engine_audio.rev_target = -1.0
 		(_sfx["explosion"] as AudioStreamPlayer).stop()
-		_set_drive_audio_muted(not _minimap_on)
+		_set_drive_audio_muted(not _ignited)
+	_minimap_on = _ignited
+	camera_rig.ending_look = 0.0
+	cockpit.stickers.zoom = 1.0
+	whiteout = -1.0
 	_flash = 1.0
 	_env_section = 0
 	env_director.apply(env_director.forest, 0.0)
 	scenery.set_environment(0)
 	flow.enter_base()
+
+
+## 结尾（6.7 第 2 步）：白化结束后车停在车库里，世界画面正常显示。
+func ending_in_garage() -> void:
+	car.use_device_input = false
+	car.set_throttle(false)
+	car.brake = false
+	car.place(Track.PATH_ACCESS, 0.0, 0.0, 1, true)
+	car.mode = CarSim.Mode.LOCKED
+	clear_section_time()
+	_env_section = 0
+	env_director.apply(env_director.forest, 0.0)
+	scenery.set_environment(0)
+	_minimap_on = false
+	whiteout = -1.0
+	_flash = 1.0
 
 
 ## 回标题画面：和回大本营一样先收拾失败演出，然后进标题（窗外全黑）。
@@ -216,6 +241,7 @@ func set_ignited_look(on: bool) -> void:
 	cockpit.show_gear = on
 	cockpit.needle_override = -1.0 if on else 0.0
 	_minimap_on = on
+	_ignited = on
 	set_drive_audio_on(on)
 
 

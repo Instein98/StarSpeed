@@ -28,6 +28,7 @@ var _pop: Array[float] = [1.0, 1.0, 1.0]
 
 func setup(p_material: Material, eye: Vector3) -> void:
 	material = p_material
+	_eye = eye
 	for i in 3:
 		var m := MeshInstance3D.new()
 		m.position = eye + POS_TOP + Vector3(0.0, -SPACING * i, 0.0)
@@ -43,13 +44,25 @@ func set_tier(index: int, tier: int, animate := false) -> void:
 		_pop[index] = 0.0
 
 
+## 结尾时放大到 1.5 倍，间距按比例放大（以中间那枚为中心）。
+var zoom := 1.0
+var _eye := Vector3.ZERO
+
+
 func _process(delta: float) -> void:
 	for i in _slots.size():
 		if _pop[i] < 1.0:
 			_pop[i] = minf(1.0, _pop[i] + delta / POP_TIME)
 		var u := _pop[i]
 		var k := lerpf(POP_SCALE, 1.0, 1.0 - pow(1.0 - u, 3.0))
-		_slots[i].scale = Vector3.ONE * k
+		_slots[i].scale = Vector3.ONE * k * zoom
+		var center := _eye + POS_TOP + Vector3(0.0, -SPACING, 0.0)
+		_slots[i].position = center + Vector3(0.0, -SPACING * (i - 1) * zoom, 0.0)
+
+
+## 一条高光快速扫过这枚贴纸（9.6：本次等级不高于已有贴纸时；结尾里森林和冰原的贴纸）。
+func sweep(_index: int) -> void:
+	pass
 
 
 static func _build(index: int, tier: int) -> ArrayMesh:
