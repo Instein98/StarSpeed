@@ -114,3 +114,16 @@ extends Resource
 @export var fx_line: PackedFloat32Array                  ## 线化强度
 @export var fx_shake_mm: PackedFloat32Array              ## 座舱震动幅度
 @export var fx_wind: PackedFloat32Array                  ## 风声音量（线性）
+
+@export_group("分层音乐（开发者 2026-11-16）")
+## 驾驶音乐分三层：底轨（计时赛和练习里一直有）、鼓、主音。
+## 后两层按"跑得多好"叠加：车速 ÷ 理想车速（PaceProfile：全油门加速、到弯前全力刹到弯道极限的最快车速曲线）。
+@export var music_pace_smooth_s: float                   ## 比例的平滑时间常数（秒），压掉换挡、刹车点上的抖动
+@export var music_drums_on: float                        ## 比例到这个值，鼓加入
+@export var music_drums_off: float                       ## 比例低于这个值并持续 music_off_hold_s，鼓退出
+@export var music_lead_on: float                         ## 比例到这个值，主音加入
+@export var music_lead_off: float                        ## 比例低于这个值并持续 music_off_hold_s，主音退出
+@export var music_off_hold_s: float                      ## 防抖：低于退出线要持续这么久才退出
+@export var music_fade_in_s: float                       ## 一层加入的淡入时间
+@export var music_fade_out_s: float                      ## 一层退出的淡出时间
+@export var music_fail_fade_s: float                     ## 撞车、爆缸时鼓和主音的快速淡出时间

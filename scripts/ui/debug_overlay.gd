@@ -43,6 +43,12 @@ func _draw() -> void:
 			car.overrev_timer, t.t11_overrev_limit, car.lat, t.slide_wall_m])
 	_text(16, 68, 12, COL_TEXT, "星速 %s   画面方案 %s   帧率 %d" % [
 			"是" if car.star_speed else "否", t.t48_fx_mode, roundi(Engine.get_frames_per_second())])
+	var music := get_node_or_null("/root/Main/Audio/Music")
+	if music != null:
+		var m: Node = music.get_parent().get_parent()
+		_text(560, 32, 12, COL_TEXT, "音乐节奏 %.0f%%（理想 %d km/h）  鼓 %.0f%% 主音 %.0f%%" % [
+				music.pace * 100.0, roundi(m.pace_profile.ideal(car.path_id, car.s) / CarSim.KMH),
+				music._gain[1] * 100.0, music._gain[2] * 100.0])
 
 	var straight := absf(car.kappa) < CarSim.KAPPA_EPS
 	var zone_name := "直道" if straight else ZONE_NAMES[car.tire_zone]

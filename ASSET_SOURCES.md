@@ -14,7 +14,7 @@
 |---|---|---|---|
 | 引擎声（4 个转速层） | `assets/audio/engine/on_*.ogg`、`off_*.ogg` | 外部：Freesound，EvanBoyerman | CC-BY 4.0，需署名 |
 | 轮胎声（3 个状态） | `assets/audio/tires/*.ogg` | 外部：OpenGameArt，audible-edge (Tom Haigh) | CC-BY 3.0，需署名 |
-| 音乐：星速（驾驶中） | `assets/audio/music/star.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
+| 音乐：星速（驾驶中，分底轨 / 鼓 / 主音三轨） | `assets/audio/music/star_base.ogg`、`star_drums.ogg`、`star_lead.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 音乐：氛围（标题、车库） | `assets/audio/music/ambient.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 风声 | `assets/audio/world/wind.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 撞车、爆炸、爆缸 | `assets/audio/world/crash.wav`、`explosion.wav`、`engine_blow.wav` | 本项目合成（2026-11-15 的一次性脚本，没有留在仓库里） | 本项目 |

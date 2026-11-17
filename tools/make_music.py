@@ -3,7 +3,8 @@
     python tools/make_music.py
 
 需要 numpy 和 ffmpeg（输出 OGG Vorbis）。所有延迟和混响都按"循环"计算（首尾相接），所以导出的文件无缝循环。
-  assets/audio/music/star.ogg     M-01 星速：172 BPM 的鼓打贝斯，明亮的合成器主音，无人声，从第一拍就是高潮，约 67 秒
+  assets/audio/music/star_base/drums/lead.ogg  M-01 星速：172 BPM 的鼓打贝斯，明亮的合成器主音，无人声，约 67 秒；
+                                  分底轨、鼓、主音三轨，游戏里按跑得好不好逐层叠加（music.gd）
   assets/audio/music/ambient.ogg  M-02 氛围：安静的合成器长音铺底，无节拍，空旷的回响，96 秒
   assets/audio/world/wind.ogg     S-14 风声：偏高频的白噪，4 秒循环
 只生成其中几个：python tools/make_music.py wind
@@ -111,7 +112,9 @@ def stereo(x, pan=0.0):
 
 
 def save(name, buf, peak=0.89):
-    buf = buf / max(1e-9, np.max(np.abs(buf))) * peak
+    """peak 为 None 时不归一化（分轨要共用一个增益）。"""
+    if peak is not None:
+        buf = buf / max(1e-9, np.max(np.abs(buf))) * peak
     os.makedirs(OUT, exist_ok=True)
     wav = os.path.join(OUT, name + ".wav")
     with wave.open(wav, "wb") as w:
@@ -153,12 +156,18 @@ def drums_hat(open_=False):
 
 
 def star():
+    """分三轨导出（开发者 2026-11-16：分层音乐，跟着跑得好不好逐层叠加），三轨等长、同时开始播放：
+    star_base  贝斯、铺底和弦、踩镲——计时赛和练习里一直有
+    star_drums 底鼓、军鼓、开镲——跑得够快时加入
+    star_lead  明亮的主音琶音——跑得接近理想时加入
+    三轨用同一个增益归一化，叠在一起就是原来的完整曲子。"""
     bpm = 172.0
     beat = 60.0 / bpm
     bars = 48
     n = int(round(bars * 4 * beat * RATE))
     six = beat / 4.0
-    mix = np.zeros((n, 2))
+    mix = np.zeros((n, 2))     # 鼓轨
+    hats = np.zeros((n, 2))    # 踩镲放进底轨，只有底轨时也有律动
     side = np.ones(n)          # 底鼓压缩：贝斯和铺底在底鼓上让位
 
     kick, snare = drums_kick(), drums_snare()
@@ -180,9 +189,9 @@ def star():
         for k in range(16):
             if k % 2 == 0:
                 v = 0.5 if k % 4 == 2 else 0.3
-                place(mix, stereo(hat * v, -0.3), int((b0 + k * six) * RATE))
+                place(hats, stereo(hat * v, -0.3), int((b0 + k * six) * RATE))
             elif rng.random() < 0.35:
-                place(mix, stereo(hat * 0.18, 0.3), int((b0 + k * six) * RATE))
+                place(hats, stereo(hat * 0.18, 0.3), int((b0 + k * six) * RATE))
         place(mix, stereo(ohat * 0.35, 0.4), int((b0 + 6 * six) * RATE))
 
     # 和弦进行（A 小调，每两小节换一个）：Am F C G
@@ -224,14 +233,19 @@ def star():
             tone = 0.6 * osc(f, ln, "square") + 0.4 * osc(f * 1.005, ln, "saw")
             seg = tone * adsr(ln, 0.003, 0.06, 0.45, 0.02)
             place(lead, seg, st)
+    # 底轨单独放时没有底鼓，压缩只留一半，免得听起来在莫名其妙地抽动
+    side = 0.5 + 0.5 * side
     bass = lowpass(bass, 380) * side
     pad = lowpass(pad, 2200) * side
     lead = lowpass(lead, 5200)
-    mix += stereo(bass * 0.55)
-    mix += stereo(pad * 0.10, -0.4) * 0.5 + stereo(pad * 0.10, 0.4) * 0.5
+    base = hats + stereo(bass * 0.55)
+    base += stereo(pad * 0.10, -0.4) * 0.5 + stereo(pad * 0.10, 0.4) * 0.5
     lead_st = delay(stereo(lead * 0.22), beat * 0.75, 0.45, 0.5)
-    mix += reverb(lead_st, 1.2, 0.18, seed=3)
-    save("star", np.tanh(mix * 1.3))
+    lead_mix = reverb(lead_st, 1.2, 0.18, seed=3)
+    stems = {"star_base": np.tanh(base * 1.3), "star_drums": np.tanh(mix * 1.3), "star_lead": np.tanh(lead_mix * 1.3)}
+    gain = 0.89 / max(1e-9, np.max(np.abs(sum(stems.values()))))
+    for name, buf in stems.items():
+        save(name, buf * gain, None)
 
 
 # ───────────────────────── M-02 氛围 ─────────────────────────

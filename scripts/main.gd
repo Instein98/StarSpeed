@@ -54,6 +54,8 @@ var _sfx: Dictionary = {}
 var scenery: Scenery
 var sfx: Sfx
 var tutorial: Tutorial
+## 理想车速曲线（分层音乐按 车速 ÷ 理想车速 叠加鼓和主音）
+var pace_profile: PaceProfile
 ## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
 var cockpit_brightness := 1.0
 var _minimap_on := true
@@ -88,6 +90,8 @@ func _ready() -> void:
 	cockpit.set_light(env_director.forest.light_color, 1.0)
 
 	car.track = track
+	pace_profile = PaceProfile.new()
+	pace_profile.build(track)
 	car.failed.connect(_on_car_failed)
 	cockpit.car = car
 	camera_rig.bind(car, track, cockpit_camera)
@@ -155,6 +159,7 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_reload"):
 		Tuning.reload()
+		pace_profile.build(track)
 	elif event.is_action_pressed("debug_overlay"):
 		overlay.visible = not overlay.visible
 	elif event.is_action_pressed("debug_next_segment"):
