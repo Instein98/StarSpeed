@@ -13,6 +13,7 @@
   sticker.wav   S-24 贴纸出现：上扬的"叮"
   shine.wav     S-25 高光扫过：轻的上扫
   whiteout.wav  S-27 终点白化：长的上扬亮音
+  pass.wav      S-09 高速穿过门、拱门、龙门架：短促的"呼"
 """
 import math
 import os
@@ -162,5 +163,22 @@ def main():
                               [s * 0.4 for s in tone(lambda t: 440 + 1320 * (t / 1.0) ** 2, 1.0, "sine", attack=0.1, release=0.15)]))
 
 
+def passby():
+    rnd = random.Random(13)
+    dur = 0.35
+    n = int(dur * RATE)
+    out = []
+    y = 0.0
+    for i in range(n):
+        t = i / RATE
+        cutoff = 600 + 5000 * math.sin(math.pi * t / dur)
+        rc = 1.0 / (2 * math.pi * cutoff)
+        k = (1.0 / RATE) / (rc + 1.0 / RATE)
+        y += k * ((rnd.random() * 2 - 1) - y)
+        out.append(y * math.sin(math.pi * t / dur) ** 1.5)
+    return out
+
+
 if __name__ == "__main__":
+    write("pass.wav", passby())
     main()

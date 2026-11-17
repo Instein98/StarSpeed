@@ -32,6 +32,8 @@ const SIGN_TEXT_PIXEL := 0.02
 
 var track: Track
 var material: Material
+## 主赛道上横跨路面的物体（门、拱门、龙门架）的里程，掠过声 S-09 用
+var overhead_s := PackedFloat64Array()
 var _grid: Dictionary = {}
 var _batches: Dictionary = {}       ## 模型键 → { 格子 → Array[Transform3D] }
 var _meshes: Dictionary = {}
@@ -171,6 +173,8 @@ static func _xf(pos: Vector3, yaw: float, scale: Vector3 = Vector3.ONE) -> Trans
 
 ## 横跨路面的物体（门、拱门、龙门架）：模型的横跨方向是 X，摆成和路垂直。
 func _across(path: int, s: float) -> Transform3D:
+	if path == Track.PATH_MAIN:
+		overhead_s.append(s)
 	var xf := track.transform_at(path, s)
 	var f := -xf.basis.z
 	var yaw := atan2(-f.x, -f.z)

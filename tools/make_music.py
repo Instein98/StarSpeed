@@ -5,6 +5,8 @@
 需要 numpy 和 ffmpeg（输出 OGG Vorbis）。所有延迟和混响都按"循环"计算（首尾相接），所以导出的文件无缝循环。
   assets/audio/music/star.ogg     M-01 星速：172 BPM 的鼓打贝斯，明亮的合成器主音，无人声，从第一拍就是高潮，约 67 秒
   assets/audio/music/ambient.ogg  M-02 氛围：安静的合成器长音铺底，无节拍，空旷的回响，96 秒
+  assets/audio/world/wind.ogg     S-14 风声：偏高频的白噪，4 秒循环
+只生成其中几个：python tools/make_music.py wind
 """
 import os
 import subprocess
@@ -263,6 +265,27 @@ def ambient():
     save("ambient", reverb(mix, 4.5, 0.55, seed=7))
 
 
+# ───────────────────────── S-14 风声 ─────────────────────────
+
+def wind():
+    """4 秒无缝循环：偏高频的白噪，带缓慢的阵风起伏。FFT 滤波本身是循环的，所以首尾自然接上。"""
+    n = 4 * RATE
+    noise = rng.standard_normal((n, 2))
+    body = lowpass(highpass(noise, 500), 5000)
+    hiss = highpass(noise[:, ::-1], 3000) * 0.35
+    t = np.arange(n) / RATE
+    gust = 0.8 + 0.2 * np.sin(2 * np.pi * t / 4.0) + 0.08 * np.sin(2 * np.pi * t * 3 / 4.0)
+    out = (body + hiss) * gust[:, None]
+    path = os.path.join(os.path.dirname(__file__), "..", "assets", "audio", "world")
+    global OUT
+    keep = OUT
+    OUT = path
+    save("wind", out, 0.7)
+    OUT = keep
+
+
 if __name__ == "__main__":
-    star()
-    ambient()
+    import sys
+    which = sys.argv[1:] or ["star", "ambient", "wind"]
+    for name in which:
+        globals()[name]()

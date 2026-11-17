@@ -100,6 +100,10 @@ func _ready() -> void:
 	sfx.name = "Sfx"
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
 	$Audio.add_child(sfx)
+	var world_audio := WorldAudio.new()
+	world_audio.name = "WorldAudio"
+	$Audio.add_child(world_audio)
+	world_audio.setup(self, car)
 	# V-01 世界揭开：盖在世界画面上、座舱画面下的一层
 	_reveal = ColorRect.new()
 	_reveal.name = "RevealWipe"
@@ -361,7 +365,7 @@ func _play_sfx(sfx_name: String) -> void:
 
 
 func _set_drive_audio_muted(muted: bool) -> void:
-	for bus: String in ["Engine", "Tires"]:
+	for bus: String in ["Engine", "Tires", "Wind"]:
 		AudioServer.set_bus_mute(AudioServer.get_bus_index(bus), muted)
 
 
