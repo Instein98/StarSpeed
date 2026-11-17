@@ -79,11 +79,11 @@ func _k(action: String) -> String:
 
 func _text(step: int) -> String:
 	match step:
-		0: return "看见了吧。前面那条路，开出去。按住 %s 就是油门。" % _k("throttle")
-		1: return "指针到 7800 转、进红区之前，按 %s 升档。" % _k("shift_up")
-		2: return "想慢下来：按 %s 刹车。也可以松开油门、按 %s 降档，让引擎把车拖住。" % [_k("brake"), _k("shift_down")]
-		3: return "过弯听轮胎。"
-		4: return "现在故意开快一点进弯。车往外滑的时候，松油门、刹车或者降档，把它救回来。"
+		0: return Loc.t("看见了吧。前面那条路，开出去。按住 %s 就是油门。") % _k("throttle")
+		1: return Loc.t("指针到 7800 转、进红区之前，按 %s 升档。") % _k("shift_up")
+		2: return Loc.t("想慢下来：按 %s 刹车。也可以松开油门、按 %s 降档，让引擎把车拖住。") % [_k("brake"), _k("shift_down")]
+		3: return Loc.t("过弯听轮胎。")
+		4: return Loc.t("现在故意开快一点进弯。车往外滑的时候，松油门、刹车或者降档，把它救回来。")
 	return ""
 
 
@@ -107,7 +107,7 @@ func _finish() -> void:
 	_active = false
 	SaveData.data["tutorial_done"] = true
 	SaveData.save()
-	_hint("可以了。按 [回车] 回大本营，选「主赛道 计时赛」。绕地球一圈，回来见。", END_TIME)
+	_hint(Loc.t("可以了。按 [回车] 回大本营，选「主赛道 计时赛」。绕地球一圈，回来见。"), END_TIME)
 
 
 ## 提示类字幕：显示 seconds 秒，之后恢复当前步骤的字幕。
@@ -145,7 +145,7 @@ func _process(delta: float) -> void:
 			# 提示 b：进入断油时一直显示，离开断油就恢复
 			if car.limiter_active and not _limiter_hint:
 				_limiter_hint = true
-				_hint("顶到头了！升档，或者松油门。再顶下去引擎会炸。", 999.0)
+				_hint(Loc.t("顶到头了！升档，或者松油门。再顶下去引擎会炸。"), 999.0)
 			elif not car.limiter_active and _limiter_hint:
 				_limiter_hint = false
 				_hint_left = 0.001
@@ -167,7 +167,7 @@ func _process(delta: float) -> void:
 		if _step2_done_t >= STEP2_EXTRA_DELAY:
 			_step2_done_t = -1.0
 			_set_step(3)
-			_hint("降档别太急。转速冲过表盘尽头，引擎当场报废。等指针落下来，再降下一档。", STEP2_EXTRA_TIME)
+			_hint(Loc.t("降档别太急。转速冲过表盘尽头，引擎当场报废。等指针落下来，再降下一档。"), STEP2_EXTRA_TIME)
 
 
 func _step2_done() -> void:
@@ -184,7 +184,7 @@ func _on_shift(is_up: bool, _from: int, _to: int) -> void:
 			_upshifts += 1
 		elif r < UPSHIFT_EARLY and _early_cooldown <= 0.0:
 			_early_cooldown = EARLY_HINT_COOLDOWN
-			_hint("升早了，动力发肉。等指针再往上走。", 3.0)
+			_hint(Loc.t("升早了，动力发肉。等指针再往上走。"), 3.0)
 	elif _step == 2 and not is_up and not car.throttle and _step2_done_t < 0.0:
 		_step2_done()
 
@@ -200,14 +200,14 @@ func _on_zone(zone: int) -> void:
 	if state < 0 or _zones_seen.has(state):
 		return
 	_zones_seen[state] = true
-	var lines := ["轻的吱吱声：接近极限了。", "又尖又响的叫声：已经在极限上，这就是最快的过弯速度。稳住它。",
-			"粗糙的摩擦声：车在往外滑。松油门或者刹车，把它救回来。"]
+	var lines := [Loc.t("轻的吱吱声：接近极限了。"), Loc.t("又尖又响的叫声：已经在极限上，这就是最快的过弯速度。稳住它。"),
+			Loc.t("粗糙的摩擦声：车在往外滑。松油门或者刹车，把它救回来。")]
 	_hint(lines[state], ZONE_HINT_TIME)
 
 
 func _on_failed(_kind: int) -> void:
 	if flow.state == RunFlow.State.PRACTICE:
-		_hint("没关系，这里随便试。再来。", FAIL_TIME)
+		_hint(Loc.t("没关系，这里随便试。再来。"), FAIL_TIME)
 
 
 func _count_laps() -> void:
@@ -228,6 +228,6 @@ func _tip_check(delta: float) -> void:
 		if _tip_hold >= TIP_HOLD:
 			SaveData.data["tip_downshift_shown"] = true
 			SaveData.save()
-			flow.show_caption(SPEAKER, "没劲了就按着油门降一档。转速上去，推力就回来了。", TIP_TIME)
+			flow.show_caption(SPEAKER, Loc.t("没劲了就按着油门降一档。转速上去，推力就回来了。"), TIP_TIME)
 	else:
 		_tip_hold = 0.0

@@ -21,7 +21,10 @@ const COL_RECORD := Color("c77dff")
 const RECENT_COUNT := 3
 const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
 const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
-const PAUSE_OPTIONS: Array[String] = ["继续", "回大本营", "回到标题", "退出游戏"]
+const PAUSE_OPTIONS: Array[String] = ["继续", "键位设置", "回大本营", "回到标题", "退出游戏"]
+## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
+const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
+const KEY_ROW_NAMES: Array[String] = ["油门", "刹车", "升档", "降档", "辅助：降档提示灯", "恢复默认"]
 # 9.1 界面颜色
 const COL_DARK := Color("1b2233")
 const COL_DARKER := Color("0f1424")
@@ -85,6 +88,9 @@ const INTRO_LINES: Array[String] = [
 	"启动设备已经接好。准备好了，就长按 %s 点火。",
 ]
 var _intro_line := 0
+var _keys_open := false
+var _keys_sel := 0
+var _keys_listen := false
 ## 9.6 的贴纸文字面板：越线后 0.3–2.5 秒显示
 var _medal_panel_t := -1.0
 var _medal_panel: Array = []
@@ -108,6 +114,79 @@ func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit
 	_hint = p_hint
 
 
+# ───────────────────────── 键位设置（9.10） ─────────────────────────
+
+func open_keys() -> void:
+	_keys_open = true
+	_keys_sel = 0
+	_keys_listen = false
+
+
+func _keys_input(event: InputEvent) -> void:
+	if _keys_listen:
+		if event is InputEventKey and event.pressed and not event.echo:
+			var code := (event as InputEventKey).physical_keycode
+			if code == KEY_ESCAPE:
+				_keys_listen = false
+				_main.sfx.play("ui_back")
+			elif SaveData.set_key(KEY_ROWS[_keys_sel], code):
+				_keys_listen = false
+				_main.sfx.play("ui_ok")
+			else:
+				_main.sfx.play("ui_back")       # 不允许的键：继续等
+		return
+	if event.is_action_pressed("pause"):
+		_keys_open = false
+		_main.sfx.play("ui_back")
+	elif event.is_action_pressed("ui_up"):
+		_keys_sel = posmod(_keys_sel - 1, KEY_ROWS.size())
+		_main.sfx.play("ui_move")
+	elif event.is_action_pressed("ui_down"):
+		_keys_sel = posmod(_keys_sel + 1, KEY_ROWS.size())
+		_main.sfx.play("ui_move")
+	elif event.is_action_pressed("confirm"):
+		_main.sfx.play("ui_ok")
+		match KEY_ROWS[_keys_sel]:
+			"assist":
+				SaveData.data["assist_downshift_lamp"] = not bool(SaveData.data.get("assist_downshift_lamp", false))
+				SaveData.save()
+			"reset":
+				SaveData.reset_keys()
+			_:
+				_keys_listen = true
+
+
+func _draw_keys() -> void:
+	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
+	var r := Rect2(Vector2(220.0, 70.0), Vector2(520.0, 440.0))
+	_draw_panel(r)
+	_text_center(Loc.t("键位设置"), 86.0 + 36.0, 36, COL_GOLD)
+	for i in KEY_ROWS.size():
+		var y := 150.0 + 52.0 * i
+		var row := KEY_ROWS[i]
+		var sel := i == _keys_sel
+		if row == "reset":
+			_draw_button(Loc.t(KEY_ROW_NAMES[i]), Vector2(480.0, y), sel, true)
+			continue
+		draw_string(_font, Vector2(250.0, y + 30.0), Loc.t(KEY_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 24 if row != "assist" else 18, COL_TEXT)
+		var label := ""
+		if row == "assist":
+			label = Loc.t("开") if bool(SaveData.data.get("assist_downshift_lamp", false)) else Loc.t("关")
+		elif sel and _keys_listen:
+			label = Loc.t("按下新键…") if _blink < 0.5 else ""
+		else:
+			label = SaveData.key_label(row)
+		var box := Rect2(Vector2(610.0 - 80.0, y), Vector2(160.0, 44.0))
+		var fill := COL_GOLD if sel else COL_DARK
+		draw_rect(box, COL_TEXT)
+		draw_rect(box.grow(-4.0), fill)
+		draw_string(_font, Vector2(box.position.x, y + 30.0), label, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, COL_DARK if sel else COL_TEXT)
+		if sel:
+			var tip := Vector2(232.0, y + 22.0)
+			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)
+	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("回车 改键   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
+
+
 # ───────────────────────── 邀请函与开场字幕（9.3） ─────────────────────────
 
 func play_intro() -> void:
@@ -116,7 +195,7 @@ func play_intro() -> void:
 
 
 func _intro_text(i: int) -> String:
-	var line := INTRO_LINES[i]
+	var line := Loc.t(INTRO_LINES[i])
 	match i:
 		3: return line % ["[%s]" % SaveData.key_label("brake"), "[%s]" % SaveData.key_label("shift_down")]
 		4: return line % ("[%s]" % SaveData.key_label("throttle"))
@@ -145,12 +224,12 @@ func _draw_invite() -> void:
 	draw_rect(Rect2(r.position + Vector2(6.0, 6.0), r.size), COL_RED)
 	draw_rect(r, COL_DARK)
 	draw_rect(r.grow(-4.0), COL_TEXT)
-	draw_string(_font, Vector2(r.position.x, 104.0 + 36.0), "邀请函", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 36, COL_RED)
-	var lines := [[170.0, "致地球上最快的人："], [214.0, "我们造了一台车。"], [248.0, "它用了不属于这颗星球的技术。"],
-			[282.0, "能驾驭它的人，全世界只有一个。"], [326.0, "请来试车。"]]
+	draw_string(_font, Vector2(r.position.x, 104.0 + 36.0), Loc.t("邀请函"), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 36, COL_RED)
+	var lines := [[170.0, Loc.t("致地球上最快的人：")], [214.0, Loc.t("我们造了一台车。")], [248.0, Loc.t("它用了不属于这颗星球的技术。")],
+			[282.0, Loc.t("能驾驭它的人，全世界只有一个。")], [326.0, Loc.t("请来试车。")]]
 	for l: Array in lines:
 		draw_string(_font, Vector2(220.0, float(l[0]) + 24.0), str(l[1]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_DARK)
-	draw_string(_font, Vector2(0.0, 390.0 + 24.0), "—— 星速计划", HORIZONTAL_ALIGNMENT_RIGHT, 740.0, 24, COL_RED)
+	draw_string(_font, Vector2(0.0, 390.0 + 24.0), Loc.t("—— 星速计划"), HORIZONTAL_ALIGNMENT_RIGHT, 740.0, 24, COL_RED)
 	if _blink < 0.5:
 		_text_center("按 [%s] 继续" % SaveData.key_label("throttle"), 484.0 + 12.0, 12, COL_DIM)
 
@@ -159,12 +238,12 @@ func _draw_invite() -> void:
 
 ## 标题画面的按钮：[文字, 可用, 动作]。键位设置、语言、重看开场在后面的功能里接上。
 func title_buttons() -> Array:
-	var list := [["开始", true, "start"]]
-	list.append(["键位设置", has_method("open_keys"), "keys"])
-	list.append(["语言：中文", false, "lang"])
+	var list := [[Loc.t("开始"), true, "start"]]
+	list.append([Loc.t("键位设置"), true, "keys"])
+	list.append([Loc.t("语言：中文"), true, "lang"])
 	if bool(SaveData.data.get("intro_seen", false)):
-		list.append(["重看开场", true, "intro"])
-	list.append(["退出", true, "quit"])
+		list.append([Loc.t("重看开场"), true, "intro"])
+	list.append([Loc.t("退出"), true, "quit"])
 	return list
 
 
@@ -249,9 +328,11 @@ func _title_choose() -> void:
 			else:
 				enter_ignite()
 		"keys":
-			call("open_keys")
+			open_keys()
 		"intro":
 			play_intro()
+		"lang":
+			Loc.toggle()
 		"quit":
 			get_tree().quit()
 
@@ -289,7 +370,7 @@ func _update_ending(delta: float) -> void:
 		_end_steps_done = 2
 		_cockpit.stickers.sweep(0)
 		_main.sfx.play("shine")
-		show_caption("CEO", END_CAPTION, END_CAPTION_TIME)   # 4. 结尾面板和 CEO 字幕
+		show_caption("CEO", Loc.t(END_CAPTION), END_CAPTION_TIME)   # 4. 结尾面板和 CEO 字幕
 	if _end_steps_done == 2 and t >= t_sweep + END_SWEEP_GAP:
 		_end_steps_done = 3
 		_cockpit.stickers.sweep(1)
@@ -318,29 +399,29 @@ func _draw_ending() -> void:
 		return
 	var p := Vector2(60.0, 150.0)
 	_draw_panel(Rect2(p, Vector2(480.0, 250.0)))
-	draw_string(_font, Vector2(p.x + 20.0, 166.0 + 36.0), "绕地球一圈，完成", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 36, COL_GOLD)
+	draw_string(_font, Vector2(p.x + 20.0, 166.0 + 36.0), Loc.t("绕地球一圈，完成"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 36, COL_GOLD)
 	var y := 230.0
 	for i in section_times.size():
 		var x := p.x + 20.0
-		draw_string(_font, Vector2(x, y + 24.0), _track.section_names[i], HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_TEXT)
+		draw_string(_font, Vector2(x, y + 24.0), Loc.t(_track.section_names[i]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_TEXT)
 		var mine: float = section_times[i]
 		draw_string(_font, Vector2(x + 80.0, y + 24.0), format_time(mine), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24,
 				COL_RECORD if section_records[i] else COL_TEXT)
 		if mine >= 0.0:
-			draw_string(_font, Vector2(x + 220.0, y + 24.0), StickerDisplay.TIER_NAMES[section_medals[i]] + "牌",
+			draw_string(_font, Vector2(x + 220.0, y + 24.0), Loc.t(StickerDisplay.TIER_NAMES[section_medals[i]] + "牌"),
 					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_TEXT)
 			if section_medals[i] > int(_start_medals[i]):
-				draw_string(_font, Vector2(x + 300.0, y + 22.0), "新纪录", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
+				draw_string(_font, Vector2(x + 300.0, y + 22.0), Loc.t("新纪录"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
 		y += 36.0
 	if not section_times.has(-1.0):
-		draw_string(_font, Vector2(p.x + 20.0, 356.0), "总用时", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, COL_TEXT)
+		draw_string(_font, Vector2(p.x + 20.0, 356.0), Loc.t("总用时"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, COL_TEXT)
 		draw_string(_font, Vector2(p.x + 100.0, 356.0), format_time(total_time()), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16,
 				COL_RECORD if new_record else COL_TEXT)
 		if not new_record:
-			draw_string(_font, Vector2(p.x + 220.0, 356.0), "最好 " + format_time(float(SaveData.data.get("best_total", -1.0))),
+			draw_string(_font, Vector2(p.x + 220.0, 356.0), Loc.t("最好 ") + format_time(float(SaveData.data.get("best_total", -1.0))),
 					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 	if _blink < 0.5:
-		draw_string(_font, Vector2(p.x + 20.0, 370.0 + 12.0 + 6.0), "回车 回大本营", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+		draw_string(_font, Vector2(p.x + 20.0, 370.0 + 12.0 + 6.0), Loc.t("回车 回大本营"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
 
 ## 9.6 的贴纸文字面板：280×84。规格的位置 (590, 215) 会压住第三枚贴纸（贴纸的位置和规格示意图不同），往左挪到 (540, 215)。
@@ -350,18 +431,18 @@ func _draw_medal_panel() -> void:
 	var r := Rect2(Vector2(540.0, 215.0), Vector2(280.0, 84.0))
 	_draw_panel(r)
 	var x := r.position.x + 12.0
-	draw_string(_font, Vector2(x, r.position.y + 10.0 + 22.0), "%s  %s牌" % [_track.section_names[index], StickerDisplay.TIER_NAMES[tier]],
+	draw_string(_font, Vector2(x, r.position.y + 10.0 + 22.0), "%s  %s" % [Loc.t(_track.section_names[index]), Loc.t(StickerDisplay.TIER_NAMES[tier] + "牌")],
 			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_GOLD)
-	draw_string(_font, Vector2(x, r.position.y + 40.0 + 11.0), "用时 " + format_time(float(_medal_panel[2])),
+	draw_string(_font, Vector2(x, r.position.y + 40.0 + 11.0), Loc.t("用时 ") + format_time(float(_medal_panel[2])),
 			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_TEXT)
-	var line3 := "最高等级"
+	var line3 := Loc.t("最高等级")
 	if tier < 4:
 		var th: PackedFloat32Array = [Tuning.d.t53_forest_thresholds, Tuning.d.t53_ice_thresholds, Tuning.d.t53_city_thresholds][index]
-		line3 = "金牌 %s 以内" % format_time(th[0])
+		line3 = Loc.t("金牌 %s 以内") % format_time(th[0])
 	draw_string(_font, Vector2(x, r.position.y + 58.0 + 11.0), line3, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 	if bool(_medal_panel[3]):
 		var w := _font.get_string_size(line3, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12).x
-		draw_string(_font, Vector2(x + w, r.position.y + 58.0 + 11.0), "  新纪录", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
+		draw_string(_font, Vector2(x + w, r.position.y + 58.0 + 11.0), Loc.t("  新纪录"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
 
 
 ## 9.1 的面板：深蓝黑填充，4 像素金黄边框，(4, 4) 更深蓝黑硬投影。
@@ -527,12 +608,16 @@ func total_time() -> float:
 
 func _update_hint() -> void:
 	_hint.visible = state == State.PRACTICE
-	_hint.text = "练习环道    回车：回大本营"
+	_hint.text = Loc.t("练习环道    回车：回大本营")
 
 
 # ───────────────────────── 输入 ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _keys_open:
+		_keys_input(event)
+		get_viewport().set_input_as_handled()
+		return
 	if state == State.ENDING:
 		# 结尾时 Esc 不响应；面板出来后回车回大本营
 		if event.is_action_pressed("confirm") and _end_steps_done >= 2:
@@ -591,12 +676,14 @@ func _pause_choose() -> void:
 		0:
 			_set_paused(false)
 		1:
-			_set_paused(false)
-			_main.call("return_to_base")
+			open_keys()
 		2:
 			_set_paused(false)
-			_main.call("return_to_title")
+			_main.call("return_to_base")
 		3:
+			_set_paused(false)
+			_main.call("return_to_title")
+		4:
 			get_tree().quit()
 
 
@@ -622,6 +709,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	_draw_frame()
 	_draw_caption()
+	if _keys_open:
+		_draw_keys()
 
 
 func _draw_frame() -> void:
@@ -642,9 +731,9 @@ func _draw_frame() -> void:
 	if state == State.IGNITING:
 		return
 	if paused:
-		_draw_menu("暂停", PAUSE_OPTIONS, _pause_select, "↑ ↓ 选择    回车 确定    Esc 继续", [])
+		_draw_menu("暂停", PAUSE_OPTIONS, _pause_select, Loc.t("↑ ↓ 选择    回车 确定    Esc 继续"), [])
 	elif state == State.BASE:
-		_draw_menu("大本营", BASE_OPTIONS, _select, "↑ ↓ 选择    回车 出发", _best_lines())
+		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发"), _best_lines())
 	elif state == State.RESULTS:
 		_draw_results()
 	if not paused and state != State.BASE:
@@ -655,11 +744,11 @@ func _draw_frame() -> void:
 
 func _draw_menu(title: String, options: Array[String], selected: int, footer: String, extra: Array) -> void:
 	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
-	_text_center(title, 150.0, 34, COL_TEXT)
+	_text_center(Loc.t(title), 150.0, 34, COL_TEXT)
 	var y := 215.0
 	for i in options.size():
 		var on := i == selected
-		_text_center(("▶  " if on else "    ") + options[i], y, 20, COL_GOLD if on else COL_DIM)
+		_text_center(("▶  " if on else "    ") + Loc.t(options[i]), y, 20, COL_GOLD if on else COL_DIM)
 		y += 34.0
 	y += 14.0
 	for line: String in extra:
@@ -678,7 +767,7 @@ func _best_lines() -> Array:
 		var parts := PackedStringArray()
 		for i in 3:
 			if float(best_sections[i]) >= 0.0:
-				parts.append("%s %s" % [_track.section_names[i], format_time(float(best_sections[i]))])
+				parts.append("%s %s" % [Loc.t(_track.section_names[i]), format_time(float(best_sections[i]))])
 		if not parts.is_empty():
 			lines.append("区段最好  " + "    ".join(parts))
 	return lines
@@ -688,7 +777,7 @@ func _best_lines() -> Array:
 func _draw_recent() -> void:
 	var y := 34.0
 	for item in recent:
-		_text_right(str(item["name"]), GRID.x - 24.0 - 96.0, y, 16, COL_TEXT)
+		_text_right(Loc.t(str(item["name"])), GRID.x - 24.0 - 96.0, y, 16, COL_TEXT)
 		_text_right(format_time(float(item["time"])), GRID.x - 24.0, y, 16, COL_RECORD if item["record"] else COL_TEXT)
 		y += 22.0
 
@@ -699,8 +788,8 @@ func _draw_results() -> void:
 	var y := 195.0
 	for i in section_times.size():
 		var mine: float = section_times[i]
-		var medal: String = StickerDisplay.TIER_NAMES[section_medals[i]] if mine >= 0.0 else ""
-		_text_pair(_track.section_names[i], format_time(mine), y, 18, COL_RECORD if section_records[i] else COL_TEXT)
+		var medal: String = Loc.t(StickerDisplay.TIER_NAMES[section_medals[i]]) if mine >= 0.0 else ""
+		_text_pair(Loc.t(_track.section_names[i]), format_time(mine), y, 18, COL_RECORD if section_records[i] else COL_TEXT)
 		if medal != "":
 			_text_right(medal, GRID.x * 0.5 - 90.0, y, 14, COL_GOLD)
 		y += 30.0
@@ -726,7 +815,7 @@ func _draw_title() -> void:
 	for i in list.size():
 		var b: Array = list[i]
 		_draw_button(str(b[0]), Vector2(480.0, 232.0 + 50.0 * i), i == _title_select, bool(b[1]))
-	draw_string(_font, Vector2(24.0, 516.0 + 12.0), "↑↓ 选择   回车 确定", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+	draw_string(_font, Vector2(24.0, 516.0 + 12.0), Loc.t("↑↓ 选择   回车 确定"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
 
 ## 9.1 的按钮：320×44，4 像素边框，(4, 4) 更深蓝黑硬投影；选中时金黄填充，左侧外 16 像素一个朱红三角。
@@ -762,6 +851,6 @@ func _text_center(text: String, y: float, font_size: int, color: Color, offset :
 
 static func format_time(seconds: float) -> String:
 	if seconds < 0.0:
-		return "—"
+		return Loc.t("—")
 	var whole := int(seconds)
 	return "%d:%02d.%02d" % [whole / 60, whole % 60, int((seconds - whole) * 100.0)]

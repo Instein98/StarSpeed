@@ -5,7 +5,9 @@ extends Node
 signal changed
 
 const PATH := "user://save.json"
-const REBINDABLE: Array[String] = ["throttle", "shift_up", "shift_down"]
+const REBINDABLE: Array[String] = ["throttle", "brake", "shift_up", "shift_down"]
+## 不能绑定的键（4.1）：Esc、回车、F1 – F5
+const FORBIDDEN: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5]
 ## 存档里的开关：开场看过、教学完成、降档提示出现过、降档提示灯辅助（R-06a）
 const FLAGS: Array[String] = ["intro_seen", "tutorial_done", "tip_downshift_shown", "assist_downshift_lamp"]
 
@@ -20,21 +22,50 @@ var data: Dictionary = {
 	"tutorial_done": false,
 	"tip_downshift_shown": false,
 	"assist_downshift_lamp": false,
+	"lang": "zh",
 }
 
 
 func _ready() -> void:
 	for action in REBINDABLE:
 		data["keys"][action] = _current_key(action)
+	# 9.13：首次启动按系统语言决定，之后以存档为准
+	data["lang"] = "zh" if OS.get_locale_language() == "zh" else "en"
 	_load()
 	_apply_keys()
 
 
-func set_key(action: String, physical_keycode: int) -> void:
+## 改键（4.1、9.10）：绑定已被别的动作占用的键时两个动作互换。返回 false = 这个键不允许。
+func set_key(action: String, physical_keycode: int) -> bool:
+	if physical_keycode in FORBIDDEN:
+		return false
+	var old: int = data["keys"][action]
+	for other in REBINDABLE:
+		if other != action and int(data["keys"][other]) == physical_keycode:
+			data["keys"][other] = old
+			_bind(other, old)
 	data["keys"][action] = physical_keycode
-	_apply_keys()
+	_bind(action, physical_keycode)
 	save()
 	changed.emit()
+	return true
+
+
+## 恢复默认键位（以及降档提示灯辅助开关）。
+func reset_keys() -> void:
+	InputMap.load_from_project_settings()
+	for action in REBINDABLE:
+		data["keys"][action] = _current_key(action)
+	data["assist_downshift_lamp"] = false
+	save()
+	changed.emit()
+
+
+func _bind(action: String, code: int) -> void:
+	InputMap.action_erase_events(action)
+	var ev := InputEventKey.new()
+	ev.physical_keycode = code as Key
+	InputMap.action_add_event(action, ev)
 
 
 func save() -> void:
@@ -60,6 +91,10 @@ func _load() -> void:
 	var medals: Variant = (parsed as Dictionary).get("best_medals")
 	if medals is Array and (medals as Array).size() == 3:
 		data["best_medals"] = [int(medals[0]), int(medals[1]), int(medals[2])]
+	# 已经有存档、但存档里还没有语言设置的（加语言切换之前就在玩的），保持中文
+	var saved_lang: Variant = (parsed as Dictionary).get("lang", "zh")
+	if saved_lang is String and saved_lang in ["zh", "en"]:
+		data["lang"] = saved_lang
 	for flag: String in FLAGS:
 		if (parsed as Dictionary).has(flag):
 			data[flag] = bool((parsed as Dictionary)[flag])
@@ -85,12 +120,12 @@ func key_label(action: String) -> String:
 
 static func key_name(code: int) -> String:
 	match code:
-		KEY_SPACE: return "空格"
+		KEY_SPACE: return Loc.t("空格")
 		KEY_UP: return "↑"
 		KEY_DOWN: return "↓"
 		KEY_LEFT: return "←"
 		KEY_RIGHT: return "→"
-		KEY_ENTER, KEY_KP_ENTER: return "回车"
+		KEY_ENTER, KEY_KP_ENTER: return Loc.t("回车")
 	return OS.get_keycode_string(code).to_upper()
 
 
