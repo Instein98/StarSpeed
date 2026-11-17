@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 	_set_gain(_star, star_gain, STAR_DB)
 
 	var flow: RunFlow = main.flow
-	var calm := flow.state in [RunFlow.State.TITLE, RunFlow.State.IGNITE, RunFlow.State.IGNITING, RunFlow.State.RESULTS, RunFlow.State.ENDING]
+	var calm := flow.state in [RunFlow.State.TITLE, RunFlow.State.IGNITE, RunFlow.State.IGNITING, RunFlow.State.RESULTS, RunFlow.State.ENDING, RunFlow.State.INVITE, RunFlow.State.INTRO]
 	if flow.state == RunFlow.State.BASE:
 		calm = true
 	elif main.car.path_id == Track.PATH_ACCESS and main.car.v * 3.6 <= GARAGE_KMH and main.car.s < 20.0:

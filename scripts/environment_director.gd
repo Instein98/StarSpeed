@@ -11,6 +11,8 @@ const SKY_SHADER := preload("res://shaders/sky_gradient.gdshader")
 var ice: EnvironmentProfile
 var city: EnvironmentProfile
 var gold: Array[EnvironmentProfile] = []
+## 车库内（8.2）：光从正上方来，车停在车库里时用；驶出大门时 2 秒过渡到森林
+var garage: EnvironmentProfile
 
 const TRANSITION_TIME := 2.0
 
@@ -34,6 +36,7 @@ func _ready() -> void:
 	ice = load("res://data/env_ice.tres") as EnvironmentProfile
 	city = load("res://data/env_city.tres") as EnvironmentProfile
 	assert(ice != null and city != null, "冰原 / 城市环境配置读不到")
+	garage = load("res://data/env_garage.tres") as EnvironmentProfile
 	for key: String in ["forest_gold", "ice_gold", "city_gold"]:
 		gold.append(load("res://data/env_%s.tres" % key) as EnvironmentProfile)
 

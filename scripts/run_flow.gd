@@ -10,7 +10,7 @@ extends Control
 ## 选"开始"进点火提示，长按油门 T-50 秒点火：指针从 0 扫到 9000，点着后窗外揭开（V-01），然后到大本营。
 ## 这个节点在暂停时也照常运行（process_mode = ALWAYS），界面用 _draw 画在 960×540 的网格上。
 
-enum State { TITLE, IGNITE, IGNITING, BASE, PRACTICE, RUN, RESULTS, ENDING }
+enum State { TITLE, IGNITE, IGNITING, BASE, PRACTICE, RUN, RESULTS, ENDING, INVITE, INTRO }
 
 const GRID := Vector2(960.0, 540.0)
 const COL_TEXT := Color("f7ecd4")
@@ -76,6 +76,15 @@ const END_TURN := 1.5
 const END_SWEEP_GAP := 0.5
 const END_CAPTION := "欢迎回来。这台车，只有你开得了。"
 const END_CAPTION_TIME := 5.0
+# 开场字幕（9.3）。第 3、4 条按现在有刹车改过（规格原文是"它没有刹车"，见 QUESTIONS.md）
+const INTRO_LINES: Array[String] = [
+	"欢迎。你现在坐在星速跑车里。",
+	"它的加速能力来自外星科技。我们自己的试车手，没有一个敢把它开到头。",
+	"这辆车是为速度而生。刹车只够你在弯前活下来，别指望它替你开车。",
+	"想慢下来：按 %s 刹车，或者松开油门、按 %s 降档，让引擎把车拖住。",
+	"启动设备已经接好。准备好了，就长按 %s 点火。",
+]
+var _intro_line := 0
 
 
 func _ready() -> void:
@@ -96,14 +105,61 @@ func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit
 	_hint = p_hint
 
 
+# ───────────────────────── 邀请函与开场字幕（9.3） ─────────────────────────
+
+func play_intro() -> void:
+	state = State.INVITE
+	_main.sfx.play("comm")
+
+
+func _intro_text(i: int) -> String:
+	var line := INTRO_LINES[i]
+	match i:
+		3: return line % ["[%s]" % SaveData.key_label("brake"), "[%s]" % SaveData.key_label("shift_down")]
+		4: return line % ("[%s]" % SaveData.key_label("throttle"))
+	return line
+
+
+func _intro_advance() -> void:
+	if state == State.INVITE:
+		state = State.INTRO
+		_intro_line = 0
+		show_caption("CEO", _intro_text(0), -1.0, true)
+		return
+	_intro_line += 1
+	if _intro_line < INTRO_LINES.size():
+		show_caption("CEO", _intro_text(_intro_line), -1.0, true)
+	else:
+		hide_caption()
+		SaveData.data["intro_seen"] = true
+		SaveData.save()
+		enter_ignite()
+
+
+func _draw_invite() -> void:
+	draw_rect(Rect2(Vector2.ZERO, GRID), COL_DARKER)
+	var r := Rect2(Vector2(180.0, 80.0), Vector2(600.0, 380.0))
+	draw_rect(Rect2(r.position + Vector2(6.0, 6.0), r.size), COL_RED)
+	draw_rect(r, COL_DARK)
+	draw_rect(r.grow(-4.0), COL_TEXT)
+	draw_string(_font, Vector2(r.position.x, 104.0 + 36.0), "邀请函", HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 36, COL_RED)
+	var lines := [[170.0, "致地球上最快的人："], [214.0, "我们造了一台车。"], [248.0, "它用了不属于这颗星球的技术。"],
+			[282.0, "能驾驭它的人，全世界只有一个。"], [326.0, "请来试车。"]]
+	for l: Array in lines:
+		draw_string(_font, Vector2(220.0, float(l[0]) + 24.0), str(l[1]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_DARK)
+	draw_string(_font, Vector2(0.0, 390.0 + 24.0), "—— 星速计划", HORIZONTAL_ALIGNMENT_RIGHT, 740.0, 24, COL_RED)
+	if _blink < 0.5:
+		_text_center("按 [%s] 继续" % SaveData.key_label("throttle"), 484.0 + 12.0, 12, COL_DIM)
+
+
 # ───────────────────────── 标题画面与点火 ─────────────────────────
 
 ## 标题画面的按钮：[文字, 可用, 动作]。键位设置、语言、重看开场在后面的功能里接上。
 func title_buttons() -> Array:
 	var list := [["开始", true, "start"]]
-	list.append(["键位设置", _main.has_method("open_keys"), "keys"])
+	list.append(["键位设置", has_method("open_keys"), "keys"])
 	list.append(["语言：中文", false, "lang"])
-	if bool(SaveData.data.get("intro_seen", false)) and _main.has_method("play_intro"):
+	if bool(SaveData.data.get("intro_seen", false)):
 		list.append(["重看开场", true, "intro"])
 	list.append(["退出", true, "quit"])
 	return list
@@ -185,14 +241,14 @@ func _title_choose() -> void:
 	_main.sfx.play("ui_ok")
 	match str(b[2]):
 		"start":
-			if not bool(SaveData.data.get("intro_seen", false)) and _main.has_method("play_intro"):
-				_main.call("play_intro")
+			if not bool(SaveData.data.get("intro_seen", false)):
+				play_intro()
 			else:
 				enter_ignite()
 		"keys":
-			_main.call("open_keys")
+			call("open_keys")
 		"intro":
-			_main.call("play_intro")
+			play_intro()
 		"quit":
 			get_tree().quit()
 
@@ -450,6 +506,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.is_action_pressed("confirm") and _end_steps_done >= 2:
 			_leave_ending()
 		return
+	if state in [State.INVITE, State.INTRO]:
+		if event.is_action_pressed("throttle") and not event.is_echo():
+			_intro_advance()
+		return
 	if state in [State.TITLE, State.IGNITE, State.IGNITING]:
 		# 9.1 / 11.2a：标题、点火提示时 Esc 不响应
 		if state == State.TITLE:
@@ -529,6 +589,9 @@ func _draw() -> void:
 
 
 func _draw_frame() -> void:
+	if state == State.INVITE:
+		_draw_invite()
+		return
 	if state == State.ENDING:
 		_draw_ending()
 		return

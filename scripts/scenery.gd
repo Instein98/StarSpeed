@@ -156,6 +156,7 @@ func _mesh(key: String) -> Mesh:
 		"rail": m = SceneryModels.guardrail(parts[1] == "1")
 		"arrow": m = SceneryModels.arrow_sign(parts[1] == "1")
 		"base": m = SceneryModels.base()
+		"person": m = SceneryModels.person(int(parts[1]))
 	_meshes[key] = m
 	return m
 
@@ -248,6 +249,11 @@ func _longest_straight(section: int) -> Array[float]:
 
 func _place_base() -> void:
 	_add("base", Transform3D.IDENTITY)
+	# 三个人物（5.9，车库坐标：前方 = −Z，右 = +X），都面朝车
+	for p: Array in [[0, Vector3(-3.0, 0.0, -6.0)], [1, Vector3(-4.5, 0.0, -6.5)], [2, Vector3(3.5, 0.0, -5.0)]]:
+		var pos: Vector3 = p[1]
+		var face := (Vector3.ZERO - pos).normalized()
+		_add("person:%d" % int(p[0]), _xf(pos, atan2(-face.x, -face.z)))
 	var label := Label3D.new()
 	label.text = "STAR SPEED"
 	label.font_size = 96

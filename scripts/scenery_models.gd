@@ -334,3 +334,36 @@ static func base() -> ArrayMesh:
 	# 西墙上金黄色字牌底板 6 × 1.2，中心离地 3.5（字在 scenery.gd 里另加）
 	k.box(Vector3(-6.85, 3.5, 2.0), Vector3(0.06, 1.2, 6.0), COL_GOLD)
 	return k.build()
+
+
+## A-12 人物（5.9）：方块化的头、躯干、四肢，没有手指和五官，双臂垂在身侧；正面朝 −Z。
+## kind：0 CEO（瘦高，深蓝黑西装，金黄领带，暖白头发），1 保镖（高一头、宽一倍，深蓝黑西装，墨镜横条），
+## 2 技术人员（暖白连体工作服，朱红帽子，胸前一块暖白平板）。
+static func person(kind: int) -> ArrayMesh:
+	var k := MeshKit.new()
+	var h: float = [1.75, 1.95, 1.7][kind]
+	var wide: float = [1.0, 2.0, 1.1][kind]
+	var suit: Color = [COL_DARK, COL_DARK, COL_BLD_WARM][kind]
+	var skin := COL_BLD_WARM
+	var leg_h := h * 0.47
+	var torso_h := h * 0.33
+	var head := h * 0.13
+	var sw := 0.36 * wide
+	for side: float in [-1.0, 1.0]:
+		k.box(Vector3(side * sw * 0.25, leg_h * 0.5, 0.0), Vector3(sw * 0.4, leg_h, 0.22), suit)               # 腿
+		k.box(Vector3(side * (sw * 0.5 + 0.07), leg_h + torso_h * 0.45, 0.0), Vector3(0.13, torso_h * 0.95, 0.15), suit)   # 手臂
+		k.box(Vector3(side * (sw * 0.5 + 0.07), leg_h + torso_h * 0.0 - 0.02, 0.0), Vector3(0.1, 0.1, 0.1), skin)   # 手
+	k.box(Vector3(0.0, leg_h + torso_h * 0.5, 0.0), Vector3(sw, torso_h, 0.26), suit)                     # 躯干
+	k.box(Vector3(0.0, leg_h + torso_h + head * 0.5 + 0.03, 0.0), Vector3(head * 0.85, head, head * 0.9), skin)   # 头
+	var top := leg_h + torso_h + head + 0.03
+	match kind:
+		0:
+			k.box(Vector3(0.0, leg_h + torso_h * 0.6, -0.135), Vector3(0.06, torso_h * 0.6, 0.02), COL_GOLD)   # 领带
+			k.box(Vector3(0.0, top + 0.02, 0.0), Vector3(head * 0.9, 0.05, head * 0.95), COL_WARM)            # 头发
+		1:
+			k.box(Vector3(0.0, top - head * 0.45, -head * 0.46), Vector3(head * 0.8, 0.05, 0.03), COL_DARK)   # 墨镜
+		2:
+			k.box(Vector3(0.0, top + 0.03, 0.0), Vector3(head * 0.95, 0.07, head), COL_RED)                    # 帽子
+			k.box(Vector3(0.0, top + 0.01, -head * 0.6), Vector3(head * 0.9, 0.025, 0.12), COL_RED)            # 帽檐
+			k.box(Vector3(0.0, leg_h + torso_h * 0.55, -0.2), Vector3(0.24, 0.32, 0.03), COL_WARM)            # 平板
+	return k.build()

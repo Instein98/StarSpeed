@@ -283,11 +283,14 @@ func _update_environment() -> void:
 	if car.path_id == Track.PATH_MAIN:
 		want = track.section_index_at(car.s)
 		gold = int((SaveData.data.get("best_medals", [0, 0, 0]) as Array)[want]) >= 4
+	if car.path_id == Track.PATH_ACCESS and car.s < Track.GARAGE_DOOR_Y:
+		want = -1      # 车库内
 	if want != _env_section or gold != _env_gold:
 		_env_section = want
 		_env_gold = gold
-		env_director.transition_to(env_director.profile_for_section(want, gold), _section_heading(want))
-		scenery.set_environment(want, gold)
+		var profile := env_director.garage if want < 0 else env_director.profile_for_section(want, gold)
+		env_director.transition_to(profile, _section_heading(maxi(want, 0)))
+		scenery.set_environment(maxi(want, 0), gold)
 	cockpit.set_light(env_director.light_color, cockpit_brightness)
 
 

@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="EnvironmentProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/environment_profile.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_name = "车库内"
+palette = PackedColorArray(0.105882, 0.133333, 0.200000, 1, 0.058824, 0.078431, 0.141176, 1, 0.937255, 0.290196, 0.184314, 1, 0.709804, 0.215686, 0.121569, 1, 1.000000, 0.788235, 0.235294, 1, 0.968627, 0.925490, 0.831373, 1, 1.000000, 1.000000, 1.000000, 1, 0.290196, 0.321569, 0.384314, 1, 0.541176, 0.576471, 0.639216, 1, 0.168627, 0.207843, 0.313725, 1, 0.227451, 0.254902, 0.313725, 1, 0.850980, 0.803922, 0.705882, 1, 0.309804, 0.721569, 0.901961, 1, 0.345098, 0.725490, 0.478431, 1, 0.623529, 0.839216, 0.933333, 1, 0.058824, 0.078431, 0.141176, 1)
+sky_top = Color(0.309804, 0.721569, 0.901961, 1)
+sky_bottom = Color(0.968627, 0.925490, 0.831373, 1)
+fog_color = Color(0.968627, 0.925490, 0.831373, 1)
+light_azimuth_deg = 180.0
+light_elevation_deg = 55.0
+light_color = Color(0.968627, 0.925490, 0.831373, 1)
+brightness = 1.0
+night_emissive = Color(1, 1, 1, 1)
+night_mode = false
+ground_color = Color(0.227451, 0.254902, 0.313725, 1)
+cloud_count = 12
+far_ring_variant = "a"
+gold_fx = ""
