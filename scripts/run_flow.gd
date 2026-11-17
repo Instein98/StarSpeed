@@ -85,6 +85,9 @@ const INTRO_LINES: Array[String] = [
 	"启动设备已经接好。准备好了，就长按 %s 点火。",
 ]
 var _intro_line := 0
+## 9.6 的贴纸文字面板：越线后 0.3–2.5 秒显示
+var _medal_panel_t := -1.0
+var _medal_panel: Array = []
 
 
 func _ready() -> void:
@@ -340,6 +343,27 @@ func _draw_ending() -> void:
 		draw_string(_font, Vector2(p.x + 20.0, 370.0 + 12.0 + 6.0), "回车 回大本营", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
 
+## 9.6 的贴纸文字面板：280×84。规格的位置 (590, 215) 会压住第三枚贴纸（贴纸的位置和规格示意图不同），往左挪到 (540, 215)。
+func _draw_medal_panel() -> void:
+	var index: int = _medal_panel[0]
+	var tier: int = _medal_panel[1]
+	var r := Rect2(Vector2(540.0, 215.0), Vector2(280.0, 84.0))
+	_draw_panel(r)
+	var x := r.position.x + 12.0
+	draw_string(_font, Vector2(x, r.position.y + 10.0 + 22.0), "%s  %s牌" % [_track.section_names[index], StickerDisplay.TIER_NAMES[tier]],
+			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_GOLD)
+	draw_string(_font, Vector2(x, r.position.y + 40.0 + 11.0), "用时 " + format_time(float(_medal_panel[2])),
+			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_TEXT)
+	var line3 := "最高等级"
+	if tier < 4:
+		var th: PackedFloat32Array = [Tuning.d.t53_forest_thresholds, Tuning.d.t53_ice_thresholds, Tuning.d.t53_city_thresholds][index]
+		line3 = "金牌 %s 以内" % format_time(th[0])
+	draw_string(_font, Vector2(x, r.position.y + 58.0 + 11.0), line3, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+	if bool(_medal_panel[3]):
+		var w := _font.get_string_size(line3, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12).x
+		draw_string(_font, Vector2(x + w, r.position.y + 58.0 + 11.0), "  新纪录", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
+
+
 ## 9.1 的面板：深蓝黑填充，4 像素金黄边框，(4, 4) 更深蓝黑硬投影。
 func _draw_panel(r: Rect2, border := COL_GOLD, fill := COL_DARK) -> void:
 	draw_rect(Rect2(r.position + Vector2(4.0, 4.0), r.size), COL_DARKER)
@@ -441,12 +465,20 @@ func section_done(index: int, seconds: float) -> void:
 	var tier := medal_for(index, seconds)
 	section_medals[index] = tier
 	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
-	if tier > int(medals[index]):
+	var improved := tier > int(medals[index])
+	if improved:
 		medals[index] = tier
 		SaveData.data["best_medals"] = medals
 		SaveData.save()
-		if index < section_times.size() - 1:
-			_cockpit.stickers.set_tier(index, tier, true)   # 城市的贴纸在结尾画面里贴（6.7）
+	if index < section_times.size() - 1:
+		# 9.6：森林、冰原的贴纸在越过终点线时出现，不暂停驾驶；城市的贴纸在结尾画面里贴（6.7）
+		_main.sfx.play("sticker")
+		if improved:
+			_cockpit.stickers.set_tier(index, tier, true)
+		else:
+			_cockpit.stickers.sweep(index)
+		_medal_panel_t = 0.0
+		_medal_panel = [index, tier, seconds, improved]
 	recent.append({"name": _track.section_names[index], "time": seconds, "record": record})
 	while recent.size() > RECENT_COUNT:
 		recent.pop_front()
@@ -574,6 +606,10 @@ func _process(delta: float) -> void:
 	_blink = fposmod(_blink + delta, 1.0)
 	if not paused:
 		_update_caption(delta)
+		if _medal_panel_t >= 0.0:
+			_medal_panel_t += delta
+			if _medal_panel_t >= 2.5:
+				_medal_panel_t = -1.0
 		if state == State.ENDING:
 			_update_ending(delta)
 		if state == State.IGNITE:
@@ -613,6 +649,8 @@ func _draw_frame() -> void:
 		_draw_results()
 	if not paused and state != State.BASE:
 		_draw_recent()
+	if _medal_panel_t >= 0.3 and state == State.RUN:
+		_draw_medal_panel()
 
 
 func _draw_menu(title: String, options: Array[String], selected: int, footer: String, extra: Array) -> void:
