@@ -28,8 +28,8 @@ const BASE_PRACTICE := 4
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
-const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "clear"]
-const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "清除成绩"]
+const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "lang", "clear"]
+const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "语言", "清除成绩"]
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
 const KEY_ROW_NAMES: Array[String] = ["油门", "刹车", "升档", "降档", "辅助：降档提示灯", "恢复默认"]
@@ -222,6 +222,31 @@ const CREDITS: Array = [
 	["音乐、其余音效、模型", "本项目用代码生成"],
 ]
 var _credits_open := false
+var _help_open := false
+
+
+## 怎么玩（开发者 2026-11-19 第 2 轮 #5）：规则和按键一页说清，按键随改键显示。
+func _draw_help() -> void:
+	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
+	_draw_panel(Rect2(Vector2(90.0, 50.0), Vector2(780.0, 460.0)))
+	_text_center(Loc.t("怎么玩"), 66.0 + 36.0, 36, COL_GOLD)
+	var k := func(a: String) -> String: return "[" + SaveData.key_label(a) + "]"
+	var lines := [
+		[Loc.t("目标"), Loc.t("森林、冰原、城市三个区段连着跑，比总用时；也可以单独跑一段。")],
+		[Loc.t("操作"), Loc.t("油门 %s   刹车 %s   升档 %s   降档 %s   重开 [R]   暂停 [Esc]") % [k.call("throttle"), k.call("brake"), k.call("shift_up"), k.call("shift_down")]],
+		[Loc.t("换挡"), Loc.t("指针进红区前升档。顶着断油太久，引擎会爆。")],
+		[Loc.t("降档"), Loc.t("降档后转速冲过表盘尽头会爆缸：等指针落下来再降。")],
+		[Loc.t("过弯"), Loc.t("进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。")],
+		[Loc.t("打滑"), Loc.t("太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。")],
+		[Loc.t("奖励"), Loc.t("贴着极限过弯有\"完美过弯\"；跑得越接近理想车速，音乐越完整。")],
+		[Loc.t("对手"), Loc.t("青色的半透明车是你最好那趟的幽灵；右上角是和最好成绩的差值。")],
+	]
+	var y := 150.0
+	for row: Array in lines:
+		draw_string(_font, Vector2(120.0, y + 16.0), str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 15, COL_GOLD)
+		draw_string(_font, Vector2(190.0, y + 16.0), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, 650.0, 15, COL_TEXT)
+		y += 38.0
+	_text_center(Loc.t("回车 / Esc 返回"), 492.0, 12, COL_DIM)
 
 
 func _draw_credits() -> void:
@@ -270,6 +295,9 @@ func _settings_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("confirm") or (not row.begins_with("vol_") and row != "clear" \
 			and (event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"))):
 		match row:
+			"lang":
+				Loc.toggle()
+				_main.sfx.play("ui_ok")
 			"fullscreen", "ghost_on", "auto_shift":
 				SaveData.data[row] = not bool(SaveData.data.get(row, row != "auto_shift"))
 				SaveData.apply_settings()
@@ -293,32 +321,36 @@ func _draw_settings() -> void:
 	_draw_panel(Rect2(Vector2(220.0, 70.0), Vector2(520.0, 440.0)))
 	_text_center(Loc.t("设置"), 86.0 + 36.0, 36, COL_GOLD)
 	for i in SET_ROWS.size():
-		var y := 146.0 + 46.0 * i
+		var y := 142.0 + 41.0 * i
 		var row := SET_ROWS[i]
 		var sel := i == _set_sel
 		if row == "clear":
 			var label := Loc.t("再按一次回车确认") if _clear_armed else Loc.t(SET_ROW_NAMES[i])
 			_draw_button(label, Vector2(480.0, y), sel, true)
 			continue
-		draw_string(_font, Vector2(250.0, y + 30.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
-		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 44.0))
+		draw_string(_font, Vector2(250.0, y + 26.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
+		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 36.0))
 		draw_rect(box, COL_TEXT)
 		draw_rect(box.grow(-4.0), COL_GOLD if sel else COL_DARK)
 		var ink := COL_DARK if sel else COL_TEXT
 		if row.begins_with("vol_"):
 			var v := int(SaveData.data.get(row, 8))
 			for k in 10:
-				var cell := Rect2(Vector2(box.position.x + 14.0 + k * 15.5, y + 12.0), Vector2(11.0, 20.0))
+				var cell := Rect2(Vector2(box.position.x + 14.0 + k * 15.5, y + 9.0), Vector2(11.0, 18.0))
 				if k < v:
 					draw_rect(cell, ink)
 				else:
 					draw_rect(cell, ink, false, 1.0)
 		else:
-			var on := bool(SaveData.data.get(row, row != "auto_shift"))
-			var word := (Loc.t("自动") if on else Loc.t("手动")) if row == "auto_shift" else (Loc.t("开") if on else Loc.t("关"))
-			draw_string(_font, Vector2(box.position.x, y + 30.0), word, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
+			var word := ""
+			if row == "lang":
+				word = "中文" if Loc.lang() == "zh" else "English"
+			else:
+				var on := bool(SaveData.data.get(row, row != "auto_shift"))
+				word = (Loc.t("自动") if on else Loc.t("手动")) if row == "auto_shift" else (Loc.t("开") if on else Loc.t("关"))
+			draw_string(_font, Vector2(box.position.x, y + 26.0), word, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
 		if sel:
-			var tip := Vector2(232.0, y + 22.0)
+			var tip := Vector2(232.0, y + 18.0)
 			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)
 	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("↑ ↓ 选择   ← → 调整   回车 切换   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
 
@@ -375,9 +407,9 @@ func _draw_invite() -> void:
 ## 标题画面的按钮：[文字, 可用, 动作]。键位设置、语言、重看开场在后面的功能里接上。
 func title_buttons() -> Array:
 	var list := [[Loc.t("开始"), true, "start"]]
+	list.append([Loc.t("怎么玩"), true, "help"])
 	list.append([Loc.t("设置"), true, "settings"])
 	list.append([Loc.t("键位设置"), true, "keys"])
-	list.append([Loc.t("语言：中文"), true, "lang"])
 	if bool(SaveData.data.get("intro_seen", false)):
 		list.append([Loc.t("重看开场"), true, "intro"])
 	list.append([Loc.t("制作人员"), true, "credits"])
@@ -471,6 +503,8 @@ func _title_choose() -> void:
 			open_settings()
 		"credits":
 			_credits_open = true
+		"help":
+			_help_open = true
 		"intro":
 			play_intro()
 		"lang":
@@ -911,9 +945,10 @@ func _update_hint() -> void:
 # ───────────────────────── 输入 ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _credits_open:
+	if _credits_open or _help_open:
 		if event.is_action_pressed("pause") or event.is_action_pressed("confirm"):
 			_credits_open = false
+			_help_open = false
 			_main.sfx.play("ui_back")
 		get_viewport().set_input_as_handled()
 		return
@@ -1042,6 +1077,8 @@ func _draw() -> void:
 		_draw_settings()
 	if _credits_open:
 		_draw_credits()
+	if _help_open:
+		_draw_help()
 
 
 func _draw_frame() -> void:

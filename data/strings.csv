@@ -126,3 +126,19 @@ R 再跑一次,R 再跑一次,R  Run it again
 ↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计,↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计,↑ ↓ Select    Enter Go    ← → Medals / Leaderboard / Stats
 本地排行 第 %d,本地排行 第 %d,Local rank #%d
 累计统计,累计统计,Lifetime stats
+怎么玩,怎么玩,How to play
+语言,语言,Language
+目标,目标,Goal
+森林、冰原、城市三个区段连着跑，比总用时；也可以单独跑一段。,森林、冰原、城市三个区段连着跑，比总用时；也可以单独跑一段。,"Run Forest, Ice and City back to back for the best total time, or run one section alone."
+操作,操作,Controls
+油门 %s   刹车 %s   升档 %s   降档 %s   重开 [R]   暂停 [Esc],油门 %s   刹车 %s   升档 %s   降档 %s   重开 [R]   暂停 [Esc],Throttle %s   Brake %s   Shift up %s   Shift down %s   Restart [R]   Pause [Esc]
+指针进红区前升档。顶着断油太久，引擎会爆。,指针进红区前升档。顶着断油太久，引擎会爆。,Shift up before the needle hits red. Sitting on the limiter too long blows the engine.
+降档后转速冲过表盘尽头会爆缸：等指针落下来再降。,降档后转速冲过表盘尽头会爆缸：等指针落下来再降。,A downshift that sends the needle past the end of the dial blows the engine: wait for it to drop.
+过弯,过弯,Corners
+进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。,进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。,"Slow below the corner's limit before turning in. The sharper the tyres squeal, the closer to the limit."
+打滑,打滑,Sliding
+太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。,太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。,"Too fast and you slide wide: lift, brake or downshift to save it. Reach the rail and you crash."
+奖励,奖励,Rewards
+"贴着极限过弯有""完美过弯""；跑得越接近理想车速，音乐越完整。","贴着极限过弯有""完美过弯""；跑得越接近理想车速，音乐越完整。","Corner right at the limit for PERFECT CORNER. The closer to ideal pace, the fuller the music."
+对手,对手,Rival
+青色的半透明车是你最好那趟的幽灵；右上角是和最好成绩的差值。,青色的半透明车是你最好那趟的幽灵；右上角是和最好成绩的差值。,The translucent cyan car is the ghost of your best run; top right shows your delta to it.
