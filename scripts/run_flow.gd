@@ -60,6 +60,12 @@ var section_medals: Array[int] = [0, 0, 0]                  ## 本局各区段�
 var run_crashes := 0
 ## 单区段计时赛（开发者 2026-11-19 第 2 轮 #3）：只跑这一个区段，跑完显示结算；−1 = 三段连跑
 var single_section := -1
+## 大本营下方信息的页（← → 切换）：0 奖牌、1 本地排行、2 累计统计
+var _base_page := 0
+const BASE_PAGES := 3
+const TOP_RUNS := 5
+## 本局在本地排行里的名次（1 起），没进前 5 为 0
+var run_rank := 0
 var run_top_kmh := 0.0
 var _cockpit: Cockpit
 ## 右上角显示的最近 3 个区段成绩：{name, time, record}，新的在下面；跨局保留
@@ -560,6 +566,8 @@ func _draw_ending() -> void:
 		if not new_record:
 			draw_string(_font, Vector2(p.x + 220.0, 392.0), Loc.t("最好 ") + format_time(float(SaveData.data.get("best_total", -1.0))),
 					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+		if run_rank > 0:
+			draw_string(_font, Vector2(p.x + 340.0, 392.0), Loc.t("本地排行 第 %d") % run_rank, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_GOLD)
 	if _blink < 0.5:
 		draw_string(_font, Vector2(p.x + 20.0, 422.0), Loc.t("回车 回大本营"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
@@ -816,12 +824,14 @@ func _finish_run() -> void:
 	_car.brake = true
 	new_record = false
 	var complete := not section_times.has(-1.0)
+	run_rank = 0
 	if complete:
 		var total := total_time()
 		var best_total := float(SaveData.data.get("best_total", -1.0))
 		if best_total < 0.0 or total < best_total:
 			SaveData.data["best_total"] = total
 			new_record = true
+		run_rank = _add_top_run(total)
 	SaveData.save()
 	_update_hint()
 
@@ -851,6 +861,38 @@ static func medal_for(index: int, seconds: float) -> int:
 		if seconds <= th[k]:
 			return 4 - k
 	return 1
+
+
+## 本地排行（开发者 2026-11-19 第 2 轮 #4）：存三段连跑的总用时前 5（存档 top_runs：[{t, date}]）。返回名次，没进前 5 是 0。
+func _add_top_run(total: float) -> int:
+	var runs: Array = SaveData.data.get("top_runs", [])
+	# 排行是这个功能之后才有的：第一次写入时把之前的最好总成绩补进去（日期未知）
+	if runs.is_empty() and float(SaveData.data.get("best_total", -1.0)) >= 0.0 and float(SaveData.data["best_total"]) < total:
+		runs.append({"t": float(SaveData.data["best_total"]), "date": "—"})
+	var d := Time.get_date_dict_from_system()
+	var entry := {"t": total, "date": "%04d-%02d-%02d" % [d["year"], d["month"], d["day"]]}
+	runs.append(entry)
+	runs.sort_custom(func(a, b): return float(a["t"]) < float(b["t"]))
+	var rank := runs.find(entry) + 1
+	runs = runs.slice(0, TOP_RUNS)
+	SaveData.data["top_runs"] = runs
+	return rank if rank <= TOP_RUNS else 0
+
+
+## 累计统计（第 2 轮 #10 填内容）。
+func _stats_lines() -> Array:
+	return [Loc.t("累计统计")]
+
+
+func _top_lines() -> Array:
+	var lines := [Loc.t("本地排行（三段连跑总用时）")]
+	var runs: Array = SaveData.data.get("top_runs", [])
+	if runs.is_empty():
+		var bt := float(SaveData.data.get("best_total", -1.0))
+		lines.append(Loc.t("还没有记录") if bt < 0.0 else "1.  " + format_time(bt))
+	for i in runs.size():
+		lines.append("%d.  %s    %s" % [i + 1, format_time(float(runs[i]["t"])), str(runs[i]["date"])])
+	return lines
 
 
 func total_time() -> float:
@@ -922,7 +964,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	match state:
 		State.BASE:
-			if event.is_action_pressed("ui_up"):
+			if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"):
+				_base_page = posmod(_base_page + (1 if event.is_action_pressed("ui_right") else -1), BASE_PAGES)
+				_main.sfx.play("ui_move")
+			elif event.is_action_pressed("ui_up"):
 				_select = posmod(_select - 1, BASE_OPTIONS.size())
 			elif event.is_action_pressed("ui_down"):
 				_select = posmod(_select + 1, BASE_OPTIONS.size())
@@ -1025,7 +1070,8 @@ func _draw_frame() -> void:
 			foot += Loc.t("    R 重新开始")
 		_draw_menu("暂停", opts, _pause_select, foot, [])
 	elif state == State.BASE:
-		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发"), _best_lines())
+		var pages := [_best_lines(), _top_lines(), _stats_lines()]
+		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计"), pages[_base_page])
 	elif state == State.RESULTS:
 		_draw_results()
 	if not paused and state != State.BASE:

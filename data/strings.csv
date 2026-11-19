@@ -121,3 +121,8 @@ Star Speed 开发组,Star Speed 开发组,The Star Speed team
 单区段  城市,单区段  城市,Single section  City
 区段完成,区段完成,Section complete
 R 再跑一次,R 再跑一次,R  Run it again
+本地排行（三段连跑总用时）,本地排行（三段连跑总用时）,Local leaderboard (full run total)
+还没有记录,还没有记录,No records yet
+↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计,↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计,↑ ↓ Select    Enter Go    ← → Medals / Leaderboard / Stats
+本地排行 第 %d,本地排行 第 %d,Local rank #%d
+累计统计,累计统计,Lifetime stats
