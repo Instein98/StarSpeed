@@ -194,6 +194,34 @@ func _draw_keys() -> void:
 	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("回车 改键   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
 
 
+# ───────────────────────── 制作人员（开发者 2026-11-19 第 1 轮 #5） ─────────────────────────
+## CC-BY 素材的许可要求在游戏里署名；内容和 ASSET_SOURCES.md 保持一致。[标题, 内容…]
+
+const CREDITS: Array = [
+	["制作", "Star Speed 开发组"],
+	["引擎", "Godot Engine 4.5 — MIT License", "© Juan Linietsky, Ariel Manzur and contributors"],
+	["引擎声", "\"Sports Car Accelerating/Speeding Up Fast - Exhaust\" by EvanBoyerman (Freesound)", "CC BY 4.0 — modified"],
+	["轮胎声", "\"Car tire squeal skid loop\" by audible-edge (Tom Haigh), OpenGameArt", "CC BY 3.0 — modified"],
+	["音乐、其余音效、模型", "本项目用代码生成"],
+]
+var _credits_open := false
+
+
+func _draw_credits() -> void:
+	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
+	_draw_panel(Rect2(Vector2(120.0, 60.0), Vector2(720.0, 440.0)))
+	_text_center(Loc.t("制作人员"), 76.0 + 36.0, 36, COL_GOLD)
+	var y := 160.0
+	for block: Array in CREDITS:
+		_text_center(Loc.t(str(block[0])), y, 14, COL_DIM)
+		y += 22.0
+		for i in range(1, block.size()):
+			_text_center(Loc.t(str(block[i])), y, 16 if i == 1 else 12, COL_TEXT if i == 1 else COL_DIM)
+			y += 20.0 if i == 1 else 18.0
+		y += 12.0
+	_text_center(Loc.t("回车 / Esc 返回"), 482.0, 12, COL_DIM)
+
+
 # ───────────────────────── 设置（开发者 2026-11-19 第 1 轮 #4） ─────────────────────────
 
 var _set_open := false
@@ -334,6 +362,7 @@ func title_buttons() -> Array:
 	list.append([Loc.t("语言：中文"), true, "lang"])
 	if bool(SaveData.data.get("intro_seen", false)):
 		list.append([Loc.t("重看开场"), true, "intro"])
+	list.append([Loc.t("制作人员"), true, "credits"])
 	list.append([Loc.t("退出"), true, "quit"])
 	return list
 
@@ -422,6 +451,8 @@ func _title_choose() -> void:
 			open_keys()
 		"settings":
 			open_settings()
+		"credits":
+			_credits_open = true
 		"intro":
 			play_intro()
 		"lang":
@@ -734,6 +765,12 @@ func _update_hint() -> void:
 # ───────────────────────── 输入 ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _credits_open:
+		if event.is_action_pressed("pause") or event.is_action_pressed("confirm"):
+			_credits_open = false
+			_main.sfx.play("ui_back")
+		get_viewport().set_input_as_handled()
+		return
 	if _set_open:
 		_settings_input(event)
 		get_viewport().set_input_as_handled()
@@ -846,6 +883,8 @@ func _draw() -> void:
 		_draw_keys()
 	if _set_open:
 		_draw_settings()
+	if _credits_open:
+		_draw_credits()
 
 
 func _draw_frame() -> void:
@@ -963,7 +1002,10 @@ func _draw_title() -> void:
 	var list := title_buttons()
 	for i in list.size():
 		var b: Array = list[i]
-		_draw_button(str(b[0]), Vector2(480.0, 232.0 + 50.0 * i), i == _title_select, bool(b[1]))
+		# 按钮多于 6 个时整体上移、间距收紧，保证最后一个不出画面
+		var top := 232.0 if list.size() <= 6 else 206.0
+		var gap := 50.0 if list.size() <= 6 else 46.0
+		_draw_button(str(b[0]), Vector2(480.0, top + gap * i), i == _title_select, bool(b[1]))
 	draw_string(_font, Vector2(24.0, 516.0 + 12.0), Loc.t("↑↓ 选择   回车 确定"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
 
