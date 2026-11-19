@@ -23,6 +23,7 @@ const GUARDRAIL_SEG := 4.0
 const ACCESS_RAIL_START := 40.0   ## 出库路从车库大门外开始放护栏
 const ARROW_RADIUS_MAX := 150.0
 const ARROW_STEP := 15.0
+const BRAKE_BOARD_KMH := 450.0     ## 极限车速低于这个的弯前放刹车牌
 const ARROW_OUTSIDE := 1.5
 const VIADUCT_MIN_HEIGHT := 0.5
 const FAR_RING_RADIUS := 3800.0
@@ -34,6 +35,8 @@ var track: Track
 var material: Material
 ## 主赛道上横跨路面的物体（门、拱门、龙门架）的里程，掠过声 S-09 用
 var overhead_s := PackedFloat64Array()
+## 放了刹车牌的里程（主赛道为正，环道为负；测试和调试用）
+var brake_boards: Array[float] = []
 var _grid: Dictionary = {}
 var _batches: Dictionary = {}       ## 模型键 → { 格子 → Array[Transform3D] }
 var _meshes: Dictionary = {}
@@ -51,6 +54,7 @@ func build(p_track: Track, p_material: Material) -> void:
 	_build_grid()
 	_place_base()
 	_place_guardrails()
+	_place_brake_boards()
 	_place_forest_paths()
 	_place_forest()
 	_place_ice()
@@ -155,6 +159,7 @@ func _mesh(key: String) -> Mesh:
 		"pier": m = SceneryModels.pier()
 		"rail": m = SceneryModels.guardrail(parts[1] == "1")
 		"arrow": m = SceneryModels.arrow_sign(parts[1] == "1")
+		"brake": m = SceneryModels.brake_board(int(parts[1]))
 		"base": m = SceneryModels.base()
 		"person": m = SceneryModels.person(int(parts[1]))
 	_meshes[key] = m
@@ -315,6 +320,39 @@ func _place_guardrails() -> void:
 					var f := -xf.basis.z
 					_add("arrow:%d" % (1 if kappa > 0.0 else 0), _xf(pos, atan2(-f.x, -f.z)))
 				s += ARROW_STEP
+
+
+## 刹车牌（第 4 轮 #2）：弯道极限车速低于 BRAKE_BOARD_KMH、前面是直道的弯，
+## 在弯道起点前 300 / 200 / 100 m 放 3 / 2 / 1 道条的牌（直道不够长的只放放得下的几块），立在弯外侧那一边的护栏外。
+func _place_brake_boards() -> void:
+	var t := Tuning.d
+	for p in [Track.PATH_MAIN, Track.PATH_LOOP]:
+		var segs := track.segments(p)
+		for i in range(1, segs.size()):
+			var seg: Dictionary = segs[i]
+			var kappa: float = seg["kappa"]
+			var prev: Dictionary = segs[i - 1]
+			if kappa == 0.0 or float(prev["kappa"]) != 0.0:
+				continue
+			var straight := float(prev["end"]) - float(prev["start"])
+			if straight < 110.0:
+				continue
+			var v_lim := sqrt(t.t20_grip_g * 9.8 / absf(kappa)) * 3.6
+			if v_lim > BRAKE_BOARD_KMH:
+				continue
+			var side := 1.0 if kappa > 0.0 else -1.0     # 左弯的外侧在右边
+			var dist := Track.barrier_inner() + Track.BARRIER_THICK + 2.0
+			for bars: int in [3, 2, 1]:
+				if 100.0 * bars > straight - 10.0:
+					continue
+				var s: float = float(seg["start"]) - 100.0 * bars
+				var xf := track.transform_at(p, s)
+				var pos := xf.origin + track.right_at(p, s) * side * dist
+				if _rail_blocked(p, s, pos):
+					continue
+				var f := -xf.basis.z
+				_add("brake:%d" % bars, _xf(pos, atan2(-f.x, -f.z)))
+				brake_boards.append(s if p == Track.PATH_MAIN else -s)
 
 
 ## 路口例外（5.4）；城市高架上已经有护墙，也不放。

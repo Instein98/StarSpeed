@@ -276,6 +276,25 @@ static func guardrail(white: bool) -> ArrayMesh:
 	return k.build()
 
 
+## 刹车牌（开发者 2026-11-19 第 4 轮 #2）：大弯前 300 / 200 / 100 m，暖白牌面上 3 / 2 / 1 道深色斜条。
+## 牌 2.0 × 2.6 m，离地 1.4 m，朝 +Z（朝来车）。牌面用自发光（顶点 alpha = 0），背光时也看得清。
+static func brake_board(bars: int) -> ArrayMesh:
+	var k := MeshKit.new()
+	k.beam(Vector3(0, 0, 0), Vector3(0, 1.4, 0), 0.14, COL_BLD_GREY)
+	var face := Color(COL_WARM.r, COL_WARM.g, COL_WARM.b, 0.0)
+	var ink := Color(COL_DARK.r, COL_DARK.g, COL_DARK.b, 0.0)
+	k.box(Vector3(0, 2.7, -0.02), Vector3(2.0, 2.6, 0.1), face)
+	var z := 0.05
+	var gap := 0.62
+	for i in bars:
+		var y := 2.7 + (i - (bars - 1) * 0.5) * gap
+		var a := Vector3(-0.8, y - 0.18, z)
+		var b := Vector3(0.8, y + 0.18, z)
+		k.quad(a, Vector3(b.x, b.y - 0.34, z), b, Vector3(a.x, a.y + 0.34, z), ink)
+		k.quad(a, Vector3(a.x, a.y + 0.34, z), b, Vector3(b.x, b.y - 0.34, z), ink)   # 两面都画，不管绕序
+	return k.build()
+
+
 ## A-51 弯道箭头牌：2 × 2 m，离地 1 m，深蓝黑底，金黄色折线箭头；left = 指向左。牌面朝 +Z（朝来车）。
 static func arrow_sign(left: bool) -> ArrayMesh:
 	var k := MeshKit.new()
