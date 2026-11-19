@@ -636,6 +636,7 @@ func _leave_base() -> void:
 	_car.set_exit_armed(to_main)
 	_car.mode = CarSim.Mode.DRIVE
 	state = State.RUN if to_main else State.PRACTICE
+	_main.corner_judge.reset_counts()
 	if not to_main:
 		_main.tutorial.start()
 	_update_hint()
@@ -652,6 +653,7 @@ func restart_state() -> void:
 	new_record = false
 	_medal_panel_t = -1.0
 	_main.tutorial.stop()
+	_main.corner_judge.reset_counts()
 	state = State.RUN
 	_update_hint()
 
@@ -920,6 +922,20 @@ func _draw_frame() -> void:
 		_draw_recent()
 	if _medal_panel_t >= 0.3 and state == State.RUN:
 		_draw_medal_panel()
+	_draw_corner_popup()
+
+
+## 过弯评价：挡风玻璃下方正中，先放大弹出再淡出。完美 = 金黄，漂亮 = 暖白。
+func _draw_corner_popup() -> void:
+	var j: CornerJudge = _main.corner_judge
+	if j == null or j.popup_t <= 0.0 or paused or not (state in [State.RUN, State.PRACTICE]):
+		return
+	var age := CornerJudge.POPUP_TIME - j.popup_t
+	var alpha := clampf(j.popup_t / 0.4, 0.0, 1.0)
+	var size := int(lerpf(34.0, 26.0, clampf(age / 0.15, 0.0, 1.0))) if j.popup_perfect else 22
+	var col := COL_GOLD if j.popup_perfect else COL_TEXT
+	_text_center(j.popup, 262.0 + 2.0, size, Color(COL_DARKER, alpha), Vector2(2.0, 0.0))
+	_text_center(j.popup, 262.0, size, Color(col, alpha))
 
 
 func _draw_menu(title: String, options: Array[String], selected: int, footer: String, extra: Array) -> void:

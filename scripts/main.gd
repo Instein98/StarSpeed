@@ -60,6 +60,8 @@ var pace_profile: PaceProfile
 var music_lamps: MusicLamps
 ## 最好成绩的幽灵和实时差值
 var ghost: Ghost
+## 过弯评价
+var corner_judge: CornerJudge
 ## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
 var cockpit_brightness := 1.0
 var _minimap_on := true
@@ -124,6 +126,10 @@ func _ready() -> void:
 	sfx.name = "Sfx"
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
 	$Audio.add_child(sfx)
+	corner_judge = CornerJudge.new()
+	corner_judge.name = "CornerJudge"
+	add_child(corner_judge)
+	corner_judge.setup(self, car)
 	tutorial = Tutorial.new()
 	tutorial.name = "Tutorial"
 	add_child(tutorial)

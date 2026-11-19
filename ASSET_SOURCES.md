@@ -19,7 +19,7 @@
 | 风声 | `assets/audio/world/wind.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 撞车、爆炸、爆缸 | `assets/audio/world/crash.wav`、`explosion.wav`、`engine_blow.wav` | 本项目合成（2026-11-15 的一次性脚本，没有留在仓库里） | 本项目 |
 | 断油声（已不用） | `assets/audio/engine/limiter.ogg` | 本项目合成（早期一次性脚本） | 本项目 |
-| 界面音、字幕音、起动机、换挡、回火、掠过、贴纸、高光、白化 | `assets/audio/sfx/*.wav` | 本项目合成：`tools/make_sfx.py` | 本项目 |
+| 界面音、字幕音、起动机、换挡、回火、掠过、贴纸、高光、白化、过弯评价铃声 | `assets/audio/sfx/*.wav` | 本项目合成：`tools/make_sfx.py` | 本项目 |
 | 座舱、转速表、方向盘、贴纸 | `scripts/cockpit.gd`、`sticker_display.gd` | 本项目：引擎自带几何体拼的替身 | 本项目 |
 | 路边景物、车库、基地、人物、远景环、云 | `scripts/scenery_models.gd`、`mesh_kit.gd`、`scenery.gd` | 本项目：代码生成的低多边形替身 | 本项目 |
 | 流星、极光 | `scripts/gold_fx.gd` | 本项目：代码生成 | 本项目 |

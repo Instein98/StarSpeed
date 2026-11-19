@@ -107,3 +107,6 @@ music_off_hold_s = 1.5
 music_fade_in_s = 1.0
 music_fade_out_s = 2.0
 music_fail_fade_s = 0.3
+corner_perfect_ratio = 0.96
+corner_great_ratio = 0.9
+corner_min_time = 0.4

@@ -128,3 +128,8 @@ extends Resource
 @export var music_fade_in_s: float                       ## 一层加入的淡入时间
 @export var music_fade_out_s: float                      ## 一层退出的淡出时间
 @export var music_fail_fade_s: float                     ## 撞车、爆缸时鼓和主音的快速淡出时间
+
+@export_group("过弯评价（开发者 2026-11-19）")
+@export var corner_perfect_ratio: float                  ## 弯里最高 车速 ÷ 极限车速 到这个值、没打滑 = 完美过弯
+@export var corner_great_ratio: float                    ## 到这个值、没打滑 = 漂亮
+@export var corner_min_time: float                       ## 在弯里不足这么多秒的不评价

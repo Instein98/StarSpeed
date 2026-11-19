@@ -14,6 +14,7 @@
   shine.wav     S-25 高光扫过：轻的上扫
   whiteout.wav  S-27 终点白化：长的上扬亮音
   pass.wav      S-09 高速穿过门、拱门、龙门架：短促的"呼"
+  corner_perfect.wav / corner_great.wav  过弯评价的铃声（只生成这两个：python tools/make_sfx.py corner）
 """
 import math
 import os
@@ -163,6 +164,13 @@ def main():
                               [s * 0.4 for s in tone(lambda t: 440 + 1320 * (t / 1.0) ** 2, 1.0, "sine", attack=0.1, release=0.15)]))
 
 
+def corner_chimes():
+    """过弯评价（开发者 2026-11-19 第 1 轮 #6）：完美 = 三个音上行的亮铃声；漂亮 = 两个音、轻一些。"""
+    write("corner_perfect.wav", concat(blip(1318, 1318, 0.05, "triangle", 0.8), blip(1568, 1568, 0.05, "triangle", 0.8),
+                                       blip(2093, 2093, 0.22, "triangle", 0.8)))
+    write("corner_great.wav", concat(blip(1175, 1175, 0.05, "triangle", 0.5), blip(1568, 1568, 0.16, "triangle", 0.5)))
+
+
 def passby():
     rnd = random.Random(13)
     dur = 0.35
@@ -180,5 +188,10 @@ def passby():
 
 
 if __name__ == "__main__":
-    write("pass.wav", passby())
-    main()
+    import sys
+    if sys.argv[1:] == ["corner"]:
+        corner_chimes()
+    else:
+        write("pass.wav", passby())
+        main()
+        corner_chimes()
