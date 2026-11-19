@@ -183,3 +183,6 @@ R 再跑一次,R 再跑一次,R  Run it again
 离%s牌还差 %.2f 秒,离%s牌还差 %.2f 秒,%s needs %.2f s more
 解锁夜景,解锁夜景,Night unlocked
 下次经过这个区段时是夜晚的样子,下次经过这个区段时是夜晚的样子,This section now runs at night
+本趟,本趟,This run
+截图已保存,截图已保存,Screenshot saved
+截图失败,截图失败,Screenshot failed

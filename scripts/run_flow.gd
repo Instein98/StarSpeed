@@ -801,6 +801,24 @@ func _reset_run_stats() -> void:
 	run_top_kmh = 0.0
 
 
+## 暂停菜单下方的本趟进度（第 3 轮 #9）：跑完的区段用时，正在跑的区段已用时间和差值。
+func _pause_lines() -> Array:
+	if state != State.RUN:
+		return []
+	var parts := PackedStringArray()
+	for i in section_times.size():
+		if section_times[i] >= 0.0:
+			parts.append(Loc.t(_track.section_names[i]) + " " + format_time(section_times[i]))
+	var cur: int = _main._timing_section
+	if cur >= 0:
+		var live: float = _main.ghost.delta
+		var tail := "" if is_nan(live) else "  (" + format_delta(live) + ")"
+		parts.append(Loc.t(_track.section_names[cur]) + " " + format_time(float(_main._section_time)) + "…" + tail)
+	if parts.is_empty():
+		return []
+	return [Loc.t("本趟") + "  " + "    ".join(parts)]
+
+
 ## 暂停菜单这一次显示哪些项（序号对应 PAUSE_OPTIONS）。
 func _pause_items() -> Array[int]:
 	var items: Array[int] = []
@@ -1037,6 +1055,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.is_action_pressed("confirm"):
 				_title_choose()
 		return
+	if event.is_action_pressed("screenshot"):
+		_take_screenshot()
+		get_viewport().set_input_as_handled()
+		return
 	if event.is_action_pressed("pause"):
 		_set_paused(not paused)
 		get_viewport().set_input_as_handled()
@@ -1080,6 +1102,19 @@ func _notification(what: int) -> void:
 		SaveData.save()          # 关窗口时把累计统计存下来
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and not paused and state in [State.RUN, State.PRACTICE] 			and not _keys_open and not _set_open:
 		_set_paused(true)
+
+
+## F12 截图（第 3 轮 #10）：存到 user://screenshots/，文件名带日期时间，弹提示。
+func _take_screenshot() -> void:
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://screenshots"))
+	var d := Time.get_datetime_dict_from_system()
+	var name := "star_speed_%04d%02d%02d_%02d%02d%02d.png" % [d["year"], d["month"], d["day"], d["hour"], d["minute"], d["second"]]
+	var path := "user://screenshots/" + name
+	var img := get_viewport().get_texture().get_image()
+	if img != null and img.save_png(path) == OK:
+		notice(Loc.t("截图已保存"), ProjectSettings.globalize_path("user://screenshots"))
+	else:
+		notice(Loc.t("截图失败"), path)
 
 
 func _set_paused(on: bool) -> void:
@@ -1190,7 +1225,7 @@ func _draw_frame() -> void:
 		var foot := Loc.t("↑ ↓ 选择    回车 确定    Esc 继续")
 		if state == State.RUN:
 			foot += Loc.t("    R 重新开始")
-		_draw_menu("暂停", opts, _pause_select, foot, [])
+		_draw_menu("暂停", opts, _pause_select, foot, _pause_lines())
 	elif state == State.BASE:
 		var pages := [_best_lines(), _top_lines(), _stats_lines(), _achievement_lines()]
 		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计 / 成就"), pages[_base_page])
