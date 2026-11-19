@@ -133,12 +133,26 @@ func _erase_keys(action: String) -> void:
 			InputMap.action_erase_event(action, ev)
 
 
+## 设置项的类型（加载时按类型校验；开发者 2026-11-19 第 2 轮 #9）
+const INT_SETTINGS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fx_level"]
+const BOOL_SETTINGS: Array[String] = ["fullscreen", "ghost_on", "auto_shift", "speedo"]
+const TMP_PATH := "user://save.json.tmp"
+
+
+## 写存档：先写临时文件再改名替换，写到一半断电 / 崩溃也不会把旧存档写坏。
 func save() -> void:
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(TMP_PATH, FileAccess.WRITE)
 	if f == null:
-		push_warning("存档写入失败: " + PATH)
+		push_warning("存档写入失败: " + TMP_PATH)
 		return
 	f.store_string(JSON.stringify(data, "  "))
+	f.close()
+	var err := DirAccess.rename_absolute(ProjectSettings.globalize_path(TMP_PATH), ProjectSettings.globalize_path(PATH))
+	if err != OK:
+		push_warning("存档改名失败（%d），直接覆盖写" % err)
+		var g := FileAccess.open(PATH, FileAccess.WRITE)
+		if g != null:
+			g.store_string(JSON.stringify(data, "  "))
 
 
 func _load() -> void:
@@ -146,7 +160,26 @@ func _load() -> void:
 		return
 	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(PATH))
 	if not parsed is Dictionary:
-		return   # 无法解析时使用默认值
+		# 存档损坏：留一份副本（save.corrupt-时间.json）方便找回，然后用默认值
+		var backup := "user://save.corrupt-%d.json" % int(Time.get_unix_time_from_system())
+		DirAccess.copy_absolute(ProjectSettings.globalize_path(PATH), ProjectSettings.globalize_path(backup))
+		push_warning("存档无法解析，已备份到 " + backup + "，使用默认值")
+		return
+	for key: String in INT_SETTINGS:
+		var v: Variant = (parsed as Dictionary).get(key)
+		if v is float or v is int:
+			data[key] = int(v)
+	for key: String in BOOL_SETTINGS:
+		var v: Variant = (parsed as Dictionary).get(key)
+		if v is bool:
+			data[key] = v
+	var top: Variant = (parsed as Dictionary).get("top_runs")
+	if top is Array:
+		var runs := []
+		for r: Variant in top:
+			if r is Dictionary and ((r as Dictionary).get("t") is float or (r as Dictionary).get("t") is int):
+				runs.append({"t": float(r["t"]), "date": str((r as Dictionary).get("date", "—"))})
+		data["top_runs"] = runs
 	var best_total: Variant = (parsed as Dictionary).get("best_total")
 	if best_total is float or best_total is int:
 		data["best_total"] = float(best_total)
