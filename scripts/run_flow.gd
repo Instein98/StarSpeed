@@ -592,6 +592,8 @@ func _draw_ending() -> void:
 	var p := Vector2(60.0, 150.0)
 	_draw_panel(Rect2(p, Vector2(480.0, 286.0)))
 	draw_string(_font, Vector2(p.x + 20.0, 166.0 + 36.0), Loc.t("绕地球一圈，完成"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 36, COL_GOLD)
+	if new_record and fposmod(_end_t, 0.6) < 0.4:
+		draw_string(_font, Vector2(p.x, 138.0), Loc.t("新纪录！"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 28, COL_RECORD)
 	var y := 230.0
 	for i in section_times.size():
 		var x := p.x + 20.0
@@ -849,6 +851,8 @@ func section_done(index: int, seconds: float) -> void:
 			_cockpit.stickers.sweep(index)
 		_medal_panel_t = 0.0
 		_medal_panel = [index, tier, seconds, improved]
+	if record and old_best >= 0.0:
+		_celebrate(Loc.t("区段新纪录") + "  " + format_delta(seconds - old_best))
 	recent.append({"name": _track.section_names[index], "time": seconds, "record": record,
 			"diff": seconds - old_best if old_best >= 0.0 else NAN})
 	while recent.size() > RECENT_COUNT:
@@ -893,6 +897,8 @@ func _finish_run() -> void:
 		if best_total < 0.0 or total < best_total:
 			SaveData.data["best_total"] = total
 			new_record = true
+			if best_total >= 0.0:
+				_main.sfx.play("record")
 		run_rank = _add_top_run(total)
 		Achievements.unlock("finish")
 		if run_crashes == 0:
@@ -1114,6 +1120,10 @@ func _process(delta: float) -> void:
 			SaveData.stat_add("play_s", delta)
 			SaveData.stat_max("top_kmh", _car.v / CarSim.KMH)
 		_update_toast(delta)
+		if _celebrate_t >= 0.0:
+			_celebrate_t += delta
+			if _celebrate_t >= CELEBRATE_TIME:
+				_celebrate_t = -1.0
 		if _banner_t >= 0.0:
 			_banner_t += delta
 			if _banner_t >= BANNER_TIME:
@@ -1179,10 +1189,36 @@ func _draw_frame() -> void:
 	if _medal_panel_t >= 0.3 and state == State.RUN:
 		_draw_medal_panel()
 	_draw_rail_glow()
+	_draw_celebrate()
 	_draw_achievement_toast()
 	_draw_corner_popup()
 	_draw_banner()
 	_draw_speedo()
+
+
+# ───────────────────────── 刷新纪录的庆祝（第 3 轮 #4） ─────────────────────────
+## 区段刷新纪录：紫色大字"区段新纪录 −1.23"从中间放大弹出，琶音；结尾刷新总纪录：面板上方紫色"新纪录！"闪烁。
+
+const CELEBRATE_TIME := 2.2
+var _celebrate_text := ""
+var _celebrate_t := -1.0
+
+
+func _celebrate(text: String) -> void:
+	_celebrate_text = text
+	_celebrate_t = 0.0
+	_main.sfx.play("record")
+
+
+func _draw_celebrate() -> void:
+	if _celebrate_t < 0.0 or paused:
+		return
+	var t := _celebrate_t
+	var scale := 1.0 + 0.6 * exp(-t * 10.0)
+	var alpha := clampf((CELEBRATE_TIME - t) / 0.5, 0.0, 1.0)
+	var size := int(30.0 * scale)
+	_text_center(_celebrate_text, 214.0 + 2.0, size, Color(COL_DARKER, alpha), Vector2(2.0, 0.0))
+	_text_center(_celebrate_text, 214.0, size, Color(COL_RECORD, alpha))
 
 
 # ───────────────────────── 成就提示（第 3 轮 #3） ─────────────────────────

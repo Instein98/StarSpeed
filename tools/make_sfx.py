@@ -14,6 +14,7 @@
   shine.wav     S-25 高光扫过：轻的上扫
   whiteout.wav  S-27 终点白化：长的上扬亮音
   pass.wav      S-09 高速穿过门、拱门、龙门架：短促的"呼"
+  record.wav    刷新纪录的琶音（python tools/make_sfx.py record）
   rumble.wav    擦护栏预警：路肩的"突突突"，1 秒循环（python tools/make_sfx.py rumble）
   corner_perfect.wav / corner_great.wav  过弯评价的铃声（只生成这两个：python tools/make_sfx.py corner）
 """
@@ -172,6 +173,12 @@ def corner_chimes():
     write("corner_great.wav", concat(blip(1175, 1175, 0.05, "triangle", 0.5), blip(1568, 1568, 0.16, "triangle", 0.5)))
 
 
+def record_fanfare():
+    """刷新纪录（开发者 2026-11-19 第 3 轮 #4）：大三和弦琶音上行 + 最后一个长音。"""
+    notes = [(784, 0.07), (988, 0.07), (1175, 0.07), (1568, 0.35)]
+    return concat(*[blip(f, f, d, "triangle", 0.8) for f, d in notes])
+
+
 def rumble():
     """擦护栏预警（开发者 2026-11-19 第 3 轮 #2）：路肩的震动"突突突"，1 秒正好 24 下，首尾相接无缝循环。
     游戏里按车速改音调（越快越密）。"""
@@ -209,8 +216,11 @@ if __name__ == "__main__":
         corner_chimes()
     elif sys.argv[1:] == ["rumble"]:
         write("rumble.wav", rumble())
+    elif sys.argv[1:] == ["record"]:
+        write("record.wav", record_fanfare())
     else:
         write("pass.wav", passby())
         main()
         corner_chimes()
         write("rumble.wav", rumble())
+        write("record.wav", record_fanfare())
