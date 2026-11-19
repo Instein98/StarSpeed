@@ -7,7 +7,7 @@ signal changed
 const PATH := "user://save.json"
 const REBINDABLE: Array[String] = ["throttle", "brake", "shift_up", "shift_down"]
 ## 不能绑定的键（4.1）：Esc、回车、F1 – F5
-const FORBIDDEN: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6]
+const FORBIDDEN: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_R]
 ## 存档里的开关：开场看过、教学完成、降档提示出现过、降档提示灯辅助（R-06a）
 const FLAGS: Array[String] = ["intro_seen", "tutorial_done", "tip_downshift_shown", "assist_downshift_lamp"]
 

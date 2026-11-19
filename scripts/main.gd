@@ -214,6 +214,26 @@ func _process(delta: float) -> void:
 
 ## 回大本营：中断正在播的失败演出，白闪一下，车回车库。
 func return_to_base() -> void:
+	_cancel_fail()
+	_reset_look()
+	flow.enter_base()
+
+
+## 一键重开计时赛（开发者 2026-11-19 第 1 轮 #1）：车放回主赛道起点（岔路口，森林起点线前 150 m），
+## 用森林区段的进场车速和档位，计时从过起点线开始。暂停菜单"重新开始"或 R 键。
+func restart_run() -> void:
+	_cancel_fail()
+	_reset_look()
+	var t := Tuning.d
+	clear_section_time()
+	car.use_device_input = true
+	car.set_exit_armed(true)
+	car.place(Track.PATH_MAIN, 0.0, t.t54_entry_speed_kmh[0] * CarSim.KMH, t.t54_entry_gear[0])
+	car.mode = CarSim.Mode.DRIVE
+	flow.restart_state()
+
+
+func _cancel_fail() -> void:
 	if _fail_phase != FailPhase.NONE:
 		_fail_phase = FailPhase.NONE
 		explosion.stop()
@@ -222,6 +242,9 @@ func return_to_base() -> void:
 		engine_audio.rev_target = -1.0
 		(_sfx["explosion"] as AudioStreamPlayer).stop()
 		_set_drive_audio_muted(not _ignited)
+
+
+func _reset_look() -> void:
 	_minimap_on = _ignited
 	camera_rig.ending_look = 0.0
 	cockpit.stickers.zoom = 1.0
@@ -231,7 +254,6 @@ func return_to_base() -> void:
 	_env_section = 0
 	env_director.apply(env_director.forest, 0.0)
 	scenery.set_environment(0)
-	flow.enter_base()
 
 
 ## 结尾（6.7 第 2 步）：白化结束后车停在车库里，世界画面正常显示。

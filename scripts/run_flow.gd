@@ -21,7 +21,8 @@ const COL_RECORD := Color("c77dff")
 const RECENT_COUNT := 3
 const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
 const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
-const PAUSE_OPTIONS: Array[String] = ["继续", "键位设置", "回大本营", "回到标题", "退出游戏"]
+const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "键位设置", "回大本营", "回到标题", "退出游戏"]
+const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
 const KEY_ROW_NAMES: Array[String] = ["油门", "刹车", "升档", "降档", "辅助：降档提示灯", "恢复默认"]
@@ -517,6 +518,31 @@ func _leave_base() -> void:
 	_update_hint()
 
 
+## 一键重开（main.restart_run 摆好车之后调用）：清空本局成绩，进入计时赛。
+func restart_state() -> void:
+	if paused:
+		_set_paused(false)
+	_start_medals = (SaveData.data.get("best_medals", [0, 0, 0]) as Array).duplicate()
+	section_times = [-1.0, -1.0, -1.0]
+	section_records = [false, false, false]
+	section_medals = [0, 0, 0]
+	new_record = false
+	_medal_panel_t = -1.0
+	_main.tutorial.stop()
+	state = State.RUN
+	_update_hint()
+
+
+## 暂停菜单这一次显示哪些项（序号对应 PAUSE_OPTIONS）。
+func _pause_items() -> Array[int]:
+	var items: Array[int] = []
+	for i in PAUSE_OPTIONS.size():
+		if i == PAUSE_RESTART and state != State.RUN:
+			continue
+		items.append(i)
+	return items
+
+
 ## 调试用（F4 瞬移到区段起点）：直接进入计时赛状态；没跑过的区段没有成绩，结算时不记纪录。
 func debug_enter_run() -> void:
 	if state != State.RUN:
@@ -641,11 +667,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_paused(not paused)
 		get_viewport().set_input_as_handled()
 		return
+	if event.is_action_pressed("restart") and state == State.RUN and not paused:
+		_main.call("restart_run")
+		get_viewport().set_input_as_handled()
+		return
 	if paused:
+		var n := _pause_items().size()
 		if event.is_action_pressed("ui_up"):
-			_pause_select = posmod(_pause_select - 1, PAUSE_OPTIONS.size())
+			_pause_select = posmod(_pause_select - 1, n)
 		elif event.is_action_pressed("ui_down"):
-			_pause_select = posmod(_pause_select + 1, PAUSE_OPTIONS.size())
+			_pause_select = posmod(_pause_select + 1, n)
 		elif event.is_action_pressed("confirm"):
 			_pause_choose()
 		get_viewport().set_input_as_handled()
@@ -672,18 +703,20 @@ func _set_paused(on: bool) -> void:
 
 
 func _pause_choose() -> void:
-	match _pause_select:
+	match _pause_items()[_pause_select]:
 		0:
 			_set_paused(false)
-		1:
-			open_keys()
+		PAUSE_RESTART:
+			_main.call("restart_run")
 		2:
-			_set_paused(false)
-			_main.call("return_to_base")
+			open_keys()
 		3:
 			_set_paused(false)
-			_main.call("return_to_title")
+			_main.call("return_to_base")
 		4:
+			_set_paused(false)
+			_main.call("return_to_title")
+		5:
 			get_tree().quit()
 
 
@@ -731,7 +764,13 @@ func _draw_frame() -> void:
 	if state == State.IGNITING:
 		return
 	if paused:
-		_draw_menu("暂停", PAUSE_OPTIONS, _pause_select, Loc.t("↑ ↓ 选择    回车 确定    Esc 继续"), [])
+		var opts: Array[String] = []
+		for i in _pause_items():
+			opts.append(PAUSE_OPTIONS[i])
+		var foot := Loc.t("↑ ↓ 选择    回车 确定    Esc 继续")
+		if state == State.RUN:
+			foot += Loc.t("    R 重新开始")
+		_draw_menu("暂停", opts, _pause_select, foot, [])
 	elif state == State.BASE:
 		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发"), _best_lines())
 	elif state == State.RESULTS:
