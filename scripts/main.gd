@@ -41,6 +41,7 @@ const MINIMAP_ANCHOR_V := 0.727
 @onready var tire_audio: TireAudio = $Audio/TireAudio
 
 enum FailPhase { NONE, PRE, BOOM }
+const RESTART_LEAD := 150.0   ## 重开 / 单区段：放在区段起点线前多少米
 
 var _flash := 0.0
 var _white_frames := 0
@@ -236,16 +237,19 @@ func return_to_base() -> void:
 
 ## 一键重开计时赛（开发者 2026-11-19 第 1 轮 #1）：车放回主赛道起点（岔路口，森林起点线前 150 m），
 ## 用森林区段的进场车速和档位，计时从过起点线开始。暂停菜单"重新开始"或 R 键。
-func restart_run() -> void:
+## section ≥ 0 = 单区段计时赛（第 2 轮 #3）：放到那个区段起点线前 150 m，用那个区段的进场车速和档位。
+func restart_run(section := -1) -> void:
 	_cancel_fail()
 	_reset_look()
 	var t := Tuning.d
+	var i := maxi(section, 0)
 	clear_section_time()
 	car.use_device_input = true
+	car.brake = false
 	car.set_exit_armed(true)
-	car.place(Track.PATH_MAIN, 0.0, t.t54_entry_speed_kmh[0] * CarSim.KMH, t.t54_entry_gear[0])
+	car.place(Track.PATH_MAIN, maxf(track.gate_s[i] - RESTART_LEAD, 0.0), t.t54_entry_speed_kmh[i] * CarSim.KMH, t.t54_entry_gear[i])
 	car.mode = CarSim.Mode.DRIVE
-	flow.restart_state()
+	flow.restart_state(section)
 
 
 func _cancel_fail() -> void:

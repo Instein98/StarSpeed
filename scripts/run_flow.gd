@@ -23,7 +23,8 @@ const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
 ## 和最好成绩比的差值：快了绿色、慢了朱红
 const COL_FASTER := Color("7bd65a")
 const COL_SLOWER := Color("ef4a2f")
-const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
+const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "单区段  森林", "单区段  冰原", "单区段  城市", "练习环道"]
+const BASE_PRACTICE := 4
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
@@ -57,6 +58,8 @@ var section_records: Array[bool] = [false, false, false]   ## 本局各区段是
 var section_medals: Array[int] = [0, 0, 0]                  ## 本局各区段评到的贴纸等级
 ## 本局统计（开发者 2026-11-19 第 2 轮 #2）：撞车 / 爆缸次数、最高车速（km/h）。完美过弯数在 CornerJudge.counts
 var run_crashes := 0
+## 单区段计时赛（开发者 2026-11-19 第 2 轮 #3）：只跑这一个区段，跑完显示结算；−1 = 三段连跑
+var single_section := -1
 var run_top_kmh := 0.0
 var _cockpit: Cockpit
 ## 右上角显示的最近 3 个区段成绩：{name, time, record}，新的在下面；跨局保留
@@ -645,6 +648,10 @@ func enter_base() -> void:
 
 func _leave_base() -> void:
 	_start_medals = (SaveData.data.get("best_medals", [0, 0, 0]) as Array).duplicate()
+	if _select >= 1 and _select <= 3:
+		_main.call("restart_run", _select - 1)     # 单区段：直接放到那个区段的起点线前
+		return
+	single_section = -1
 	var to_main := _select == 0
 	_car.set_exit_armed(to_main)
 	_car.mode = CarSim.Mode.DRIVE
@@ -699,7 +706,8 @@ func _draw_banner() -> void:
 
 
 ## 一键重开（main.restart_run 摆好车之后调用）：清空本局成绩，进入计时赛。
-func restart_state() -> void:
+func restart_state(section := -1) -> void:
+	single_section = section
 	if paused:
 		_set_paused(false)
 	_start_medals = (SaveData.data.get("best_medals", [0, 0, 0]) as Array).duplicate()
@@ -778,8 +786,23 @@ func section_done(index: int, seconds: float) -> void:
 			"diff": seconds - old_best if old_best >= 0.0 else NAN})
 	while recent.size() > RECENT_COUNT:
 		recent.pop_front()
+	if single_section >= 0:
+		if index == single_section:
+			_finish_single()
+		return
 	if index == section_times.size() - 1:
 		_finish_run()
+
+
+## 单区段跑完：车自己刹停，显示结算（回车回大本营，R 再跑一次这一段）。
+func _finish_single() -> void:
+	state = State.RESULTS
+	_medal_panel_t = -1.0
+	_car.use_device_input = false
+	_car.set_throttle(false)
+	_car.brake = true
+	_main.sfx.play("sticker")
+	_update_hint()
 
 
 func _finish_run() -> void:
@@ -883,8 +906,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_set_paused(not paused)
 		get_viewport().set_input_as_handled()
 		return
-	if event.is_action_pressed("restart") and state == State.RUN and not paused:
-		_main.call("restart_run")
+	if event.is_action_pressed("restart") and (state == State.RUN or (state == State.RESULTS and single_section >= 0)) and not paused:
+		_main.call("restart_run", maxi(single_section, 0) if single_section >= 0 else -1)
 		get_viewport().set_input_as_handled()
 		return
 	if paused:
@@ -899,8 +922,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	match state:
 		State.BASE:
-			if event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down"):
-				_select = 1 - _select
+			if event.is_action_pressed("ui_up"):
+				_select = posmod(_select - 1, BASE_OPTIONS.size())
+			elif event.is_action_pressed("ui_down"):
+				_select = posmod(_select + 1, BASE_OPTIONS.size())
 			elif event.is_action_pressed("confirm"):
 				_leave_base()
 		State.PRACTICE, State.RESULTS:
@@ -923,7 +948,7 @@ func _pause_choose() -> void:
 		"继续":
 			_set_paused(false)
 		"重新开始":
-			_main.call("restart_run")
+			_main.call("restart_run", single_section)
 		"设置":
 			open_settings()
 		"键位设置":
@@ -1028,10 +1053,11 @@ func _draw_menu(title: String, options: Array[String], selected: int, footer: St
 	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
 	_text_center(Loc.t(title), 150.0, 34, COL_TEXT)
 	var y := 215.0
+	var gap := 34.0 if extra.is_empty() else 30.0
 	for i in options.size():
 		var on := i == selected
 		_text_center(("▶  " if on else "    ") + Loc.t(options[i]), y, 20, COL_GOLD if on else COL_DIM)
-		y += 34.0
+		y += gap
 	y += 14.0
 	for line: String in extra:
 		_text_center(line, y, 13, COL_DIM)
@@ -1085,7 +1111,7 @@ func _draw_recent() -> void:
 
 func _draw_results() -> void:
 	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
-	_text_center(Loc.t("完成"), 130.0, 34, COL_TEXT)
+	_text_center(Loc.t("完成") if single_section < 0 else Loc.t("区段完成"), 130.0, 34, COL_TEXT)
 	var y := 195.0
 	for i in section_times.size():
 		var mine: float = section_times[i]
@@ -1095,7 +1121,12 @@ func _draw_results() -> void:
 			_text_right(medal, GRID.x * 0.5 - 90.0, y, 14, COL_GOLD)
 		y += 30.0
 	y += 12.0
-	if section_times.has(-1.0):
+	if single_section >= 0:
+		var c: Array = _main.corner_judge.counts
+		_text_center(Loc.t("完美过弯") + " %d / %d    " % [c[0], c[2]] + Loc.t("撞车") + " %d    " % run_crashes
+				+ Loc.t("最高") + " %d km/h" % roundi(run_top_kmh), y, 14, COL_DIM)
+		_text_center(Loc.t("R 再跑一次"), 455.0, 12, COL_DIM)
+	elif section_times.has(-1.0):
 		_text_center(Loc.t("没有跑完整三个区段，不计总成绩"), y, 14, COL_DIM)
 	else:
 		_text_pair(Loc.t("总用时"), format_time(total_time()), y, 24, COL_RECORD if new_record else COL_TEXT)
