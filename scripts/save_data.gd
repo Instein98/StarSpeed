@@ -110,11 +110,18 @@ func reset_keys() -> void:
 	changed.emit()
 
 
+## 只换掉这个动作的键盘键，手柄按键保留（开发者 2026-11-19 第 1 轮 #8 加了手柄）。
 func _bind(action: String, code: int) -> void:
-	InputMap.action_erase_events(action)
+	_erase_keys(action)
 	var ev := InputEventKey.new()
 	ev.physical_keycode = code as Key
 	InputMap.action_add_event(action, ev)
+
+
+func _erase_keys(action: String) -> void:
+	for ev in InputMap.action_get_events(action):
+		if ev is InputEventKey:
+			InputMap.action_erase_event(action, ev)
 
 
 func save() -> void:
@@ -191,7 +198,7 @@ func _apply_keys() -> void:
 		# 存的键就是默认的第一个键时不动 Input Map，这样默认的第二个键（如油门的 W）不会被清掉
 		if code == 0 or code == _current_key(action):
 			continue
-		InputMap.action_erase_events(action)
+		_erase_keys(action)
 		var ev := InputEventKey.new()
 		ev.physical_keycode = code as Key
 		InputMap.action_add_event(action, ev)

@@ -191,6 +191,7 @@ func _draw_keys() -> void:
 		if sel:
 			var tip := Vector2(232.0, y + 22.0)
 			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)
+	draw_string(_font, Vector2(0.0, 474.0 + 11.0), Loc.t("手柄：RT 油门  LT 刹车  RB / Y 升档  LB / X 降档  A 确定  Start 暂停  Back 重开"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 11, COL_DIM)
 	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("回车 改键   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
 
 
