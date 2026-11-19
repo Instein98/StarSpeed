@@ -58,6 +58,8 @@ var tutorial: Tutorial
 var pace_profile: PaceProfile
 ## F6：分层音乐的调试灯
 var music_lamps: MusicLamps
+## 最好成绩的幽灵和实时差值
+var ghost: Ghost
 ## 座舱亮度：点火前 0.15，点火演出里升到 1.0（8.2、8.3）
 var cockpit_brightness := 1.0
 var _minimap_on := true
@@ -95,10 +97,15 @@ func _ready() -> void:
 	pace_profile = PaceProfile.new()
 	pace_profile.build(track)
 	car.failed.connect(_on_car_failed)
+	ghost = Ghost.new()
+	ghost.name = "Ghost"
+	world_viewport.add_child(ghost)
+	ghost.setup(self, car, track)
 	cockpit.car = car
 	camera_rig.bind(car, track, cockpit_camera)
 	world_post.bind(car, track)
 	minimap.bind(car, track, cockpit)
+	minimap.ghost = ghost
 	engine_audio.car = car
 	tire_audio.bind(car)
 	overlay.set("car", car)
@@ -354,6 +361,7 @@ func _update_section_timer(delta: float) -> void:
 			if _prev_main_s < gate and s >= gate:
 				if _timing_section == i - 1 and i >= 1:
 					flow.section_done(i - 1, _section_time)
+					ghost.section_finished(i - 1, flow.section_records[i - 1])
 				_timing_section = i if i < track.gate_s.size() - 1 else -1
 				_section_time = 0.0
 	_prev_main_s = s

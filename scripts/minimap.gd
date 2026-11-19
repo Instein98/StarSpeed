@@ -60,6 +60,11 @@ func _ready() -> void:
 	lookahead = Tuning.d.t52_lookahead_min_m
 
 
+## 幽灵在小地图上的点（Ghost.ghost_s 在前方时显示）
+var ghost: Ghost
+var _ghost_dot: MeshInstance3D
+
+
 func bind(p_car: CarSim, p_track: Track, p_cockpit: Cockpit) -> void:
 	car = p_car
 	track = p_track
@@ -107,8 +112,31 @@ func _process(delta: float) -> void:
 	var slide_x := car.lat / TRUE_ROAD_WIDTH * ROAD_WIDTH
 	arrow.transform = Transform3D(Basis(Vector3.BACK, deg_to_rad(steer * 0.5)),
 			Vector3(slide_x, ARROW_THICK, -ARROW_FORWARD))
+	_update_ghost_dot(main_pts, here, float(route["step"]))
 	var red := car.tire_zone == CarSim.Zone.STRUGGLE and fposmod(game_time * STRUGGLE_BLINK_HZ, 1.0) < 0.5
 	_arrow_material.albedo_color = COL_RED if red else COL_SKY
+
+
+func _update_ghost_dot(pts: PackedVector3Array, here: Array, step: float) -> void:
+	if _ghost_dot == null:
+		_ghost_dot = MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.06, 0.02, 0.06)
+		_ghost_dot.mesh = box
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = Color(0.45, 0.85, 1.0)
+		_ghost_dot.material_override = m
+		add_child(_ghost_dot)
+	var show := false
+	if ghost != null and ghost.ghost_s >= 0.0 and int(here[0]) == Track.PATH_MAIN and pts.size() >= 2 			and bool(SaveData.data.get("ghost_on", true)):
+		var k := (ghost.ghost_s - float(here[1])) / step
+		if k > 0.0 and k < pts.size() - 1:
+			var i := int(k)
+			_ghost_dot.position = pts[i].lerp(pts[i + 1], k - i) + Vector3(0.0, ARROW_THICK, 0.0)
+			_ghost_dot.rotation = Vector3(0.0, PI * 0.25, 0.0)
+			show = true
+	_ghost_dot.visible = show
 
 
 ## 世界坐标 → 以自车为原点、车头朝 −Z、除以 D 的小地图坐标；高度放大 3 倍。

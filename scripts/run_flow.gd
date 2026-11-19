@@ -20,6 +20,9 @@ const COL_DIM := Color("8a93a3")
 const COL_RECORD := Color("c77dff")
 const RECENT_COUNT := 3
 const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
+## 和最好成绩比的差值：快了绿色、慢了朱红
+const COL_FASTER := Color("7bd65a")
+const COL_SLOWER := Color("ef4a2f")
 const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
@@ -562,7 +565,8 @@ func section_done(index: int, seconds: float) -> void:
 	section_times[index] = seconds
 	# 是否刷新了这个区段的历史最好；刷新了就立刻存档
 	var best_sections: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
-	var record := float(best_sections[index]) < 0.0 or seconds < float(best_sections[index])
+	var old_best := float(best_sections[index])
+	var record := old_best < 0.0 or seconds < old_best
 	section_records[index] = record
 	if record:
 		best_sections[index] = seconds
@@ -586,7 +590,8 @@ func section_done(index: int, seconds: float) -> void:
 			_cockpit.stickers.sweep(index)
 		_medal_panel_t = 0.0
 		_medal_panel = [index, tier, seconds, improved]
-	recent.append({"name": _track.section_names[index], "time": seconds, "record": record})
+	recent.append({"name": _track.section_names[index], "time": seconds, "record": record,
+			"diff": seconds - old_best if old_best >= 0.0 else NAN})
 	while recent.size() > RECENT_COUNT:
 		recent.pop_front()
 	if index == section_times.size() - 1:
@@ -818,7 +823,15 @@ func _draw_recent() -> void:
 	for item in recent:
 		_text_right(Loc.t(str(item["name"])), GRID.x - 24.0 - 96.0, y, 16, COL_TEXT)
 		_text_right(format_time(float(item["time"])), GRID.x - 24.0, y, 16, COL_RECORD if item["record"] else COL_TEXT)
+		var diff := float(item.get("diff", NAN))
+		if not is_nan(diff):
+			_text_right(format_delta(diff), GRID.x - 24.0 - 96.0 - 64.0, y, 13, COL_FASTER if diff < 0.0 else COL_SLOWER)
 		y += 22.0
+	# 实时差值：本区段到这里比最好那趟快（绿、负）还是慢（红、正）
+	var live: float = _main.ghost.delta if _main.ghost != null else NAN
+	if state == State.RUN and not is_nan(live):
+		_text_right(Loc.t("比最好"), GRID.x - 24.0 - 96.0, y + 6.0, 13, COL_DIM)
+		_text_right(format_delta(live), GRID.x - 24.0, y + 8.0, 20, COL_FASTER if live < 0.0 else COL_SLOWER)
 
 
 func _draw_results() -> void:
@@ -886,6 +899,11 @@ func _text_right(text: String, right_x: float, y: float, font_size: int, color: 
 
 func _text_center(text: String, y: float, font_size: int, color: Color, offset := Vector2.ZERO) -> void:
 	draw_string(_font, Vector2(offset.x, y + offset.y), text, HORIZONTAL_ALIGNMENT_CENTER, GRID.x, font_size, color)
+
+
+## 差值：+0.42 / −1.07（秒，两位小数）。
+static func format_delta(seconds: float) -> String:
+	return ("+" if seconds >= 0.0 else "−") + "%.2f" % absf(seconds)
 
 
 static func format_time(seconds: float) -> String:
