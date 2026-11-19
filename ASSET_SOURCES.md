@@ -24,6 +24,7 @@
 | 路边景物、车库、基地、人物、远景环、云 | `scripts/scenery_models.gd`、`mesh_kit.gd`、`scenery.gd` | 本项目：代码生成的低多边形替身 | 本项目 |
 | 流星、极光 | `scripts/gold_fx.gd` | 本项目：代码生成 | 本项目 |
 | 画面风格（两级明暗、描边、16 色、抖动、像素化） | `shaders/*.gdshader` | 本项目 | 本项目 |
+| 程序图标 | `icon.png`、`icon.ico` | 本项目：`tools/make_icon.py` 用代码画 | 本项目 |
 | 字体 | 无字体文件 | 引擎自带：Godot 默认字体，中文由系统字体补字 | Godot 默认字体为 OFL；系统字体不随游戏分发 |
 
 现在没有任何外部的模型、贴图、图片或字体。`game-spec/samples/` 里的风格样张和 Blender 试做模型只用于设计讨论，不进游戏。

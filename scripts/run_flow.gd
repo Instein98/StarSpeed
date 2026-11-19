@@ -352,7 +352,7 @@ func _draw_invite() -> void:
 		draw_string(_font, Vector2(220.0, float(l[0]) + 24.0), str(l[1]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 24, COL_DARK)
 	draw_string(_font, Vector2(0.0, 390.0 + 24.0), Loc.t("—— 星速计划"), HORIZONTAL_ALIGNMENT_RIGHT, 740.0, 24, COL_RED)
 	if _blink < 0.5:
-		_text_center("按 [%s] 继续" % SaveData.key_label("throttle"), 484.0 + 12.0, 12, COL_DIM)
+		_text_center(Loc.t("按 [%s] 继续") % SaveData.key_label("throttle"), 484.0 + 12.0, 12, COL_DIM)
 
 
 # ───────────────────────── 标题画面与点火 ─────────────────────────
@@ -922,7 +922,7 @@ func _draw_frame() -> void:
 	if state == State.IGNITE:
 		# 点火提示：居中 y = 290，金黄，每秒闪一次；长按期间常亮
 		if _ignite_hold > 0.0 or _blink < 0.5:
-			_text_center("长按 [%s] 点火" % SaveData.key_label("throttle"), 290.0, 24, COL_GOLD)
+			_text_center(Loc.t("长按 [%s] 点火") % SaveData.key_label("throttle"), 290.0, 24, COL_GOLD)
 		return
 	if state == State.IGNITING:
 		return
@@ -1019,7 +1019,7 @@ func _draw_recent() -> void:
 
 func _draw_results() -> void:
 	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
-	_text_center("完成", 130.0, 34, COL_TEXT)
+	_text_center(Loc.t("完成"), 130.0, 34, COL_TEXT)
 	var y := 195.0
 	for i in section_times.size():
 		var mine: float = section_times[i]
@@ -1030,14 +1030,14 @@ func _draw_results() -> void:
 		y += 30.0
 	y += 12.0
 	if section_times.has(-1.0):
-		_text_center("没有跑完整三个区段，不计总成绩", y, 14, COL_DIM)
+		_text_center(Loc.t("没有跑完整三个区段，不计总成绩"), y, 14, COL_DIM)
 	else:
-		_text_pair("总用时", format_time(total_time()), y, 24, COL_RECORD if new_record else COL_TEXT)
+		_text_pair(Loc.t("总用时"), format_time(total_time()), y, 24, COL_RECORD if new_record else COL_TEXT)
 		y += 34.0
 		if not new_record:
-			_text_pair("最好成绩", format_time(float(SaveData.data.get("best_total", -1.0))), y, 14, COL_DIM, COL_DIM)
-	_text_center("紫色 = 历史最好", 440.0, 11, COL_RECORD)
-	_text_center("回车：回大本营", 470.0, 12, COL_DIM)
+			_text_pair(Loc.t("最好成绩"), format_time(float(SaveData.data.get("best_total", -1.0))), y, 14, COL_DIM, COL_DIM)
+	_text_center(Loc.t("紫色 = 历史最好"), 440.0, 11, COL_RECORD)
+	_text_center(Loc.t("回车：回大本营"), 470.0, 12, COL_DIM)
 
 
 ## 标题画面（9.2）。
