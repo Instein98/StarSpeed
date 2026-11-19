@@ -6,8 +6,8 @@ extends Node3D
 ## 远景环和云跟着摄像机走，按当前区段环境切换。
 ##
 ## 和规格不一样的地方（见 QUESTIONS.md）：
-## - 护栏放在所有圆弧的外侧（规格只放半径 ≤ 300 m 的），离中心线 slide_wall_m + 0.8 m（规格 6.5 m）：
-##   打滑撞车发生在横向位移到 slide_wall_m 时，护栏放在那里，看上去就是滑出去撞上了护栏。
+## - 护栏放在全程两侧（开发者 2026-11-19；规格只放半径 ≤ 300 m 的弯外侧），内侧面离中心线 slide_wall_m + 车身半宽：
+##   打滑撞车发生在横向位移到 slide_wall_m 时，车身正好贴上护栏，不会穿过去。
 ## - 箭头牌放在护栏外侧 1.5 m（规格 8 m，会挡在滑出去的路线上）。
 
 const CHUNK := 800.0
@@ -17,10 +17,10 @@ const SECTION_BLEND := 150.0       ## 6.5.4：区段起点线前后 150 m 内密
 const SECTION_BLEND_KEEP := 0.3
 const BASE_RECT := Rect2(-20.0, -16.0, 40.0, 30.0)   ## 基地外观占的平面范围（规格坐标 x, y）
 const BASE_NO_PLANT := 40.0        ## 5.10：基地外墙 40 m 之内不放植被
-const JUNCTION_CLEAR := 9.0        ## 5.4：护栏、箭头牌离别的路不足 9 m 不放
+## 5.4：护栏、箭头牌离别的路不足护栏距离（Track.barrier_inner）不放
 const JUNCTION_SAME_ROAD := 100.0
 const GUARDRAIL_SEG := 4.0
-const GUARDRAIL_EXTEND := 30.0
+const ACCESS_RAIL_START := 40.0   ## 出库路从车库大门外开始放护栏
 const ARROW_RADIUS_MAX := 150.0
 const ARROW_STEP := 15.0
 const ARROW_OUTSIDE := 1.5
@@ -275,46 +275,47 @@ func _near_base(pos: Vector3) -> bool:
 # ───────────────────────── 护栏、箭头牌（5.4） ─────────────────────────
 
 func _place_guardrails() -> void:
-	var dist := Tuning.d.slide_wall_m + 0.8
+	# 护栏中心 = 内侧面 + 半个厚度；两侧、全程都放（开发者 2026-11-19），只在路口和城市高架（有护墙）处空着
+	var dist := Track.barrier_inner() + Track.BARRIER_THICK * 0.5
 	var arrow_dist := dist + ARROW_OUTSIDE
 	for p in 3:
 		var total := track.length(p)
-		for seg in track.segments(p):
-			var kappa: float = seg["kappa"]
-			if kappa == 0.0:
-				continue
-			var side := 1.0 if kappa > 0.0 else -1.0   # 左弯的外侧在右边
-			var a := maxf(float(seg["start"]) - GUARDRAIL_EXTEND, 0.0)
-			var b := minf(float(seg["end"]) + GUARDRAIL_EXTEND, total)
-			var s := a
-			var n := int(a / GUARDRAIL_SEG)
-			while s < b:
-				var mid := s + GUARDRAIL_SEG * 0.5
-				var xf := track.transform_at(p, mid)
-				var r := track.right_at(p, mid)
+		var n := 0
+		var s := 0.0
+		if p == Track.PATH_ACCESS:
+			s = ACCESS_RAIL_START
+		while s < total:
+			var mid := minf(s + GUARDRAIL_SEG * 0.5, total)
+			var xf := track.transform_at(p, mid)
+			var r := track.right_at(p, mid)
+			var f := -xf.basis.z
+			for side: float in [-1.0, 1.0]:
 				var pos := xf.origin + r * side * dist
 				if not _rail_blocked(p, mid, pos):
-					var f := -xf.basis.z
 					_add("rail:%d" % (n % 2), _xf(pos, atan2(-f.x, -f.z)))
-				s += GUARDRAIL_SEG
-				n += 1
-			if 1.0 / absf(kappa) <= ARROW_RADIUS_MAX:
-				s = float(seg["start"]) + ARROW_STEP * 0.5
-				while s < float(seg["end"]):
-					var xf := track.transform_at(p, s)
-					var r := track.right_at(p, s)
-					var pos := xf.origin + r * side * arrow_dist
-					if not _rail_blocked(p, s, pos):
-						var f := -xf.basis.z
-						_add("arrow:%d" % (1 if kappa > 0.0 else 0), _xf(pos, atan2(-f.x, -f.z)))
-					s += ARROW_STEP
+			s += GUARDRAIL_SEG
+			n += 1
+		for seg in track.segments(p):
+			var kappa: float = seg["kappa"]
+			if kappa == 0.0 or 1.0 / absf(kappa) > ARROW_RADIUS_MAX:
+				continue
+			var side := 1.0 if kappa > 0.0 else -1.0   # 左弯的外侧在右边
+			s = float(seg["start"]) + ARROW_STEP * 0.5
+			while s < float(seg["end"]):
+				var xf := track.transform_at(p, s)
+				var r := track.right_at(p, s)
+				var pos := xf.origin + r * side * arrow_dist
+				if not _rail_blocked(p, s, pos):
+					var f := -xf.basis.z
+					_add("arrow:%d" % (1 if kappa > 0.0 else 0), _xf(pos, atan2(-f.x, -f.z)))
+				s += ARROW_STEP
 
 
 ## 路口例外（5.4）；城市高架上已经有护墙，也不放。
 func _rail_blocked(p: int, s: float, pos: Vector3) -> bool:
 	if p == Track.PATH_MAIN and track.section_index_at(s) == 2 and pos.y > 0.3:
 		return true
-	return _road_distance(_flat(pos), p, s, JUNCTION_SAME_ROAD) < JUNCTION_CLEAR
+	return _road_distance(_flat(pos), p, s, JUNCTION_SAME_ROAD) < Track.barrier_inner()
 
 
 # ───────────────────────── 森林（6.4、6.5.1） ─────────────────────────

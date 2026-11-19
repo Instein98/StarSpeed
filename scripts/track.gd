@@ -33,6 +33,7 @@ const GARAGE_DOOR_HALF := 4.0
 const GARAGE_TAPER := 10.0
 const PARAPET_HEIGHT := 0.8
 const PARAPET_THICK := 0.3
+const BARRIER_THICK := 0.3   ## 护栏厚度（和 SceneryModels.guardrail 一致）
 const GROUND_HALF_WIDTH := 600.0
 const GROUND_STEP := 20
 const GROUND_OVERLAP := 150.0
@@ -470,6 +471,11 @@ func _build_checker(line_s: float, v: PackedVector3Array, c: PackedColorArray) -
 					xb.origin + rb * l + up, xb.origin + rb * r + up, color)
 
 
+## 路边护栏（高架护墙）内侧面离中心线的距离：车滑到 slide_wall_m 撞车时，车身正好贴上它（开发者 2026-11-19：不能穿过护栏）。
+static func barrier_inner() -> float:
+	return Tuning.d.slide_wall_m + Tuning.d.guardrail_gap_m
+
+
 func _road_half(path_id: int, s: float) -> float:
 	if path_id == PATH_ACCESS and s < GARAGE_DOOR_Y + GARAGE_TAPER:
 		return lerpf(GARAGE_DOOR_HALF, ROAD_HALF_WIDTH, clampf((s - GARAGE_DOOR_Y) / GARAGE_TAPER, 0.0, 1.0))
@@ -514,25 +520,32 @@ func _build_road(path_id: int, v: PackedVector3Array, c: PackedColorArray) -> vo
 				_quad(v, c, a - ra * CENTER_LINE_HALF + up_line, a + ra * CENTER_LINE_HALF + up_line,
 						b - rb * CENTER_LINE_HALF + up_line, b + rb * CENTER_LINE_HALF + up_line, COL_CENTER)
 
-		# 路面抬高处：森林、冰原是 45° 路基；城市是高架护墙（5.4）
+		# 路面抬高处：路边到护栏之间是同高的路肩（深色），护栏外面森林、冰原是 45° 路基；城市的高架护墙就立在护栏的位置（5.4）。
 		if path_id == PATH_MAIN and (a.y > 0.02 or b.y > 0.02):
 			var section := section_index_at(pt.sample_s[i])
+			var wall := barrier_inner()
 			for side: float in [-1.0, 1.0]:
 				var ea := a + ra * side * ha
 				var eb := b + rb * side * hb
+				var wa := a + ra * side * wall
+				var wb := b + rb * side * wall
 				if section < 2:
+					var oa := wa + ra * side * BARRIER_THICK
+					var ob := wb + rb * side * BARRIER_THICK
+					_quad(v, c, ea, oa, eb, ob, COL_ROAD_DARK)
 					var ga := SECTION_GROUND_Y[section] - 0.05
-					var fa := ea + ra * side * (a.y - ga)
-					var fb := eb + rb * side * (b.y - ga)
+					var fa := oa + ra * side * (a.y - ga)
+					var fb := ob + rb * side * (b.y - ga)
 					fa.y = ga
 					fb.y = ga
-					_quad(v, c, ea, fa, eb, fb, COL_ROAD_DARK)
+					_quad(v, c, oa, fa, ob, fb, COL_ROAD_DARK)
 				else:
+					_quad(v, c, ea, wa, eb, wb, COL_ROAD_DARK)
 					var top := Vector3(0.0, PARAPET_HEIGHT, 0.0)
-					var oa2 := ea + ra * side * PARAPET_THICK
-					var ob2 := eb + rb * side * PARAPET_THICK
-					_quad(v, c, ea, ea + top, eb, eb + top, COL_PARAPET)
-					_quad(v, c, ea + top, oa2 + top, eb + top, ob2 + top, COL_PARAPET)
+					var oa2 := wa + ra * side * PARAPET_THICK
+					var ob2 := wb + rb * side * PARAPET_THICK
+					_quad(v, c, wa, wa + top, wb, wb + top, COL_PARAPET)
+					_quad(v, c, wa + top, oa2 + top, wb + top, ob2 + top, COL_PARAPET)
 					_quad(v, c, oa2, oa2 + top, ob2, ob2 + top, COL_PARAPET)
 
 

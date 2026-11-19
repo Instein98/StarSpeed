@@ -45,6 +45,7 @@ extends Resource
 @export var t27_slide_max_m: float
 ## 打滑（规格里没有，开发者试玩后加的；T-25、T-26、T-27 不再使用）
 @export var slide_wall_m: float                          ## 车滑到离中心线多远算撞上路边
+@export var guardrail_gap_m: float                       ## 车身半宽：护栏内侧面离中心线 slide_wall_m + 这个值，撞车的瞬间车身正好贴上护栏
 @export var slide_return_max_angle_deg: float            ## 回原路线时车头最多偏离赛道方向多少度（横向速度 ≤ 车速 × tan）
 @export var slide_return_time: float                     ## 抓地力恢复后把车拉回原路线的时间常数（秒）
 @export var recover_back_m: float                        ## 失败后的复位点：出事那个弯的入口再往回多少米
