@@ -67,6 +67,11 @@ const BASE_PAGES := 4
 const TOP_RUNS := 5
 ## 本局在本地排行里的名次（1 起），没进前 5 为 0
 var run_rank := 0
+## 练习环道的圈速（第 3 轮 #5）：第一次经过环道起点开始计，之后每圈一次；最快圈存档 best_lap
+var _lap_t := -1.0
+var _last_lap := -1.0
+var _prev_loop_s := -1.0
+var _lap_record := false
 var run_top_kmh := 0.0
 var _cockpit: Cockpit
 ## 右上角显示的最近 3 个区段成绩：{name, time, record}，新的在下面；跨局保留
@@ -1107,6 +1112,7 @@ func _process(delta: float) -> void:
 		_update_caption(delta)
 		if state == State.RUN:
 			run_top_kmh = maxf(run_top_kmh, _car.v / CarSim.KMH)
+		_update_lap(delta)
 		if state in [State.RUN, State.PRACTICE]:
 			if _car.v / CarSim.KMH >= Tuning.d.top_speed_kmh - 0.5:
 				Achievements.unlock("top")
@@ -1189,6 +1195,7 @@ func _draw_frame() -> void:
 	if _medal_panel_t >= 0.3 and state == State.RUN:
 		_draw_medal_panel()
 	_draw_rail_glow()
+	_draw_laps()
 	_draw_celebrate()
 	_draw_achievement_toast()
 	_draw_corner_popup()
@@ -1265,6 +1272,42 @@ func _achievement_lines() -> Array:
 				parts.append(("★ " if Achievements.has(a[0]) else "☆ ") + Loc.t(str(a[1])))
 		lines.append("    ".join(parts))
 	return lines
+
+
+func _update_lap(delta: float) -> void:
+	if state != State.PRACTICE or _car.path_id != Track.PATH_LOOP:
+		_lap_t = -1.0
+		_prev_loop_s = -1.0
+		return
+	if _lap_t >= 0.0:
+		_lap_t += delta
+	if _prev_loop_s >= 0.0 and _car.s < _prev_loop_s - 100.0:     # 里程绕回 0 = 过了环道起点
+		if _lap_t >= 0.0:
+			_last_lap = _lap_t
+			var best := float(SaveData.data.get("best_lap", -1.0))
+			_lap_record = best < 0.0 or _lap_t < best
+			if _lap_record:
+				SaveData.data["best_lap"] = _lap_t
+				SaveData.save()
+				if best >= 0.0:
+					_celebrate(Loc.t("最快圈") + "  " + format_delta(_lap_t - best))
+		_lap_t = 0.0
+	_prev_loop_s = _car.s
+
+
+## 练习时右上角：这一圈、上一圈、最快圈。
+func _draw_laps() -> void:
+	if state != State.PRACTICE or paused:
+		return
+	var right := GRID.x - 24.0
+	var best := float(SaveData.data.get("best_lap", -1.0))
+	var rows := [[Loc.t("本圈"), _lap_t, COL_TEXT], [Loc.t("上一圈"), _last_lap, COL_RECORD if _lap_record else COL_TEXT],
+			[Loc.t("最快圈"), best, COL_RECORD]]
+	var y := 34.0
+	for r: Array in rows:
+		_text_right(str(r[0]), right - 96.0, y, 14, COL_DIM)
+		_text_right(format_time(float(r[1])) if float(r[1]) >= 0.0 else Loc.t("—"), right, y, 16, r[2])
+		y += 22.0
 
 
 ## 擦护栏预警的屏幕边缘红光（第 3 轮 #2）：在滑出去的那一侧，从边缘向内渐隐，按 8 Hz 闪。
