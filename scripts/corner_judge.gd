@@ -73,6 +73,7 @@ func _judge() -> void:
 		return
 	if _peak >= t.corner_perfect_ratio:
 		counts[0] += 1
+		SaveData.stat_add("perfect", 1)
 		_show(Loc.t("完美过弯"), true)
 	elif _peak >= t.corner_great_ratio:
 		counts[1] += 1

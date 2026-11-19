@@ -134,6 +134,8 @@ func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit
 	_track = p_track
 	_hint = p_hint
 	_car.failed.connect(func(_k: int) -> void:
+		if state in [State.RUN, State.PRACTICE]:
+			SaveData.stat_add("crashes", 1)
 		if state == State.RUN:
 			run_crashes += 1)
 
@@ -522,6 +524,7 @@ func _title_choose() -> void:
 		"lang":
 			Loc.toggle()
 		"quit":
+			SaveData.save()
 			get_tree().quit()
 
 
@@ -686,6 +689,8 @@ func _draw_caption() -> void:
 
 ## 回大本营：车放回车库，停住，等玩家选。
 func enter_base() -> void:
+	if state in [State.RUN, State.PRACTICE, State.RESULTS, State.ENDING]:
+		SaveData.save()          # 累计统计在回大本营时落盘
 	state = State.BASE
 	_select = 0
 	section_times = [-1.0, -1.0, -1.0]
@@ -707,6 +712,8 @@ func _leave_base() -> void:
 		return
 	single_section = -1
 	var to_main := _select == 0
+	if to_main:
+		SaveData.stat_add("runs", 1)
 	_car.set_exit_armed(to_main)
 	_car.mode = CarSim.Mode.DRIVE
 	state = State.RUN if to_main else State.PRACTICE
@@ -762,6 +769,7 @@ func _draw_banner() -> void:
 ## 一键重开（main.restart_run 摆好车之后调用）：清空本局成绩，进入计时赛。
 func restart_state(section := -1) -> void:
 	single_section = section
+	SaveData.stat_add("runs", 1)
 	if paused:
 		_set_paused(false)
 	_start_medals = (SaveData.data.get("best_medals", [0, 0, 0]) as Array).duplicate()
@@ -850,6 +858,8 @@ func section_done(index: int, seconds: float) -> void:
 
 ## 单区段跑完：车自己刹停，显示结算（回车回大本营，R 再跑一次这一段）。
 func _finish_single() -> void:
+	SaveData.stat_add("finished", 1)
+	SaveData.save()
 	state = State.RESULTS
 	_medal_panel_t = -1.0
 	_car.use_device_input = false
@@ -871,6 +881,7 @@ func _finish_run() -> void:
 	new_record = false
 	var complete := not section_times.has(-1.0)
 	run_rank = 0
+	SaveData.stat_add("finished", 1)
 	if complete:
 		var total := total_time()
 		var best_total := float(SaveData.data.get("best_total", -1.0))
@@ -925,9 +936,14 @@ func _add_top_run(total: float) -> int:
 	return rank if rank <= TOP_RUNS else 0
 
 
-## 累计统计（第 2 轮 #10 填内容）。
+## 累计统计（开发者 2026-11-19 第 2 轮 #10）：大本营信息区第 3 页。
 func _stats_lines() -> Array:
-	return [Loc.t("累计统计")]
+	var st: Dictionary = SaveData.data.get("stats", {})
+	var play := int(float(st.get("play_s", 0.0)))
+	return [Loc.t("累计统计"),
+		Loc.t("驾驶") + " %.1f km    " % float(st.get("km", 0.0)) + Loc.t("时间") + " %d:%02d:%02d" % [play / 3600, play / 60 % 60, play % 60],
+		Loc.t("出发") + " %d    " % int(st.get("runs", 0)) + Loc.t("跑完") + " %d    " % int(st.get("finished", 0)) + Loc.t("撞车") + " %d" % int(st.get("crashes", 0)),
+		Loc.t("完美过弯") + " %d    " % int(st.get("perfect", 0)) + Loc.t("最高车速") + " %d km/h" % roundi(float(st.get("top_kmh", 0.0)))]
 
 
 func _top_lines() -> Array:
@@ -1030,6 +1046,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## 窗口失去焦点（切到别的程序）时自动暂停（开发者 2026-11-19 第 2 轮 #8）：只在驾驶中。
 func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		SaveData.save()          # 关窗口时把累计统计存下来
 	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and not paused and state in [State.RUN, State.PRACTICE] 			and not _keys_open and not _set_open:
 		_set_paused(true)
 
@@ -1058,6 +1076,7 @@ func _pause_choose() -> void:
 			_set_paused(false)
 			_main.call("return_to_title")
 		"退出游戏":
+			SaveData.save()
 			get_tree().quit()
 
 
@@ -1069,6 +1088,10 @@ func _process(delta: float) -> void:
 		_update_caption(delta)
 		if state == State.RUN:
 			run_top_kmh = maxf(run_top_kmh, _car.v / CarSim.KMH)
+		if state in [State.RUN, State.PRACTICE]:
+			SaveData.stat_add("km", _car.v * delta / 1000.0)
+			SaveData.stat_add("play_s", delta)
+			SaveData.stat_max("top_kmh", _car.v / CarSim.KMH)
 		if _banner_t >= 0.0:
 			_banner_t += delta
 			if _banner_t >= BANNER_TIME:

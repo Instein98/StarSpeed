@@ -34,7 +34,20 @@ var data: Dictionary = {
 	"auto_shift": false,
 	"speedo": false,        # 车速数字（第 2 轮 #6）
 	"fx_level": 0,          # 画面效果强度（第 2 轮 #7）：0 完整、1 减弱、2 最弱
+	# 累计统计（第 2 轮 #10）
+	"stats": {"km": 0.0, "runs": 0, "finished": 0, "perfect": 0, "crashes": 0, "play_s": 0.0, "top_kmh": 0.0},
 }
+const STAT_KEYS: Array[String] = ["km", "runs", "finished", "perfect", "crashes", "play_s", "top_kmh"]
+
+
+func stat_add(key: String, amount: float) -> void:
+	var st: Dictionary = data["stats"]
+	st[key] = float(st.get(key, 0.0)) + amount
+
+
+func stat_max(key: String, value: float) -> void:
+	var st: Dictionary = data["stats"]
+	st[key] = maxf(float(st.get(key, 0.0)), value)
 
 ## 画面效果强度对应的倍数（震动、景物拉线、视野随车速变宽的幅度）
 const FX_SCALES: Array[float] = [1.0, 0.55, 0.25]
@@ -173,6 +186,12 @@ func _load() -> void:
 		var v: Variant = (parsed as Dictionary).get(key)
 		if v is bool:
 			data[key] = v
+	var st: Variant = (parsed as Dictionary).get("stats")
+	if st is Dictionary:
+		for key: String in STAT_KEYS:
+			var v: Variant = (st as Dictionary).get(key)
+			if v is float or v is int:
+				data["stats"][key] = float(v)
 	var top: Variant = (parsed as Dictionary).get("top_runs")
 	if top is Array:
 		var runs := []
