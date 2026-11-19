@@ -36,6 +36,9 @@ var track: Track
 var mode := Mode.DRIVE
 ## 为真时每个物理帧从键盘读油门和换挡；测试和回放时关掉，改用 set_throttle / request_shift。
 var use_device_input := true
+## 自动挡辅助（开发者 2026-11-19 第 1 轮 #7，设置里开）：转速到最佳换挡点自动升档；
+## 刹车或松油转速掉下来时，在降档后转速不超过 auto_downshift_max_rpm 的前提下自动降档（不会降档爆缸）。玩家仍然可以手动换。
+var auto_shift := false
 
 var path_id := 0
 var s := 0.0
@@ -98,7 +101,19 @@ func _physics_process(delta: float) -> void:
 		var down := Input.is_action_just_pressed("shift_down")
 		if up != down:   # 4.2：同一帧同时按升档和降档，两个都忽略
 			request_shift(up)
+		elif auto_shift:
+			_auto_shift()
 	step(delta)
+
+
+func _auto_shift() -> void:
+	if shifting:
+		return
+	var t := Tuning.d
+	if throttle and rpm >= t.t06_best_shift_rpm and gear < t.t01_gear_count:
+		request_shift(true)
+	elif gear > 1 and rpm_for(v, gear - 1) <= t.auto_downshift_max_rpm 			and (brake or rpm < t.auto_downshift_low_rpm):
+		request_shift(false)
 
 
 # ───────────────────────── 输入 ─────────────────────────

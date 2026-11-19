@@ -96,6 +96,8 @@ func _ready() -> void:
 	cockpit.set_light(env_director.forest.light_color, 1.0)
 
 	car.track = track
+	car.auto_shift = bool(SaveData.data.get("auto_shift", false))
+	SaveData.settings_applied.connect(func(): car.auto_shift = bool(SaveData.data.get("auto_shift", false)))
 	pace_profile = PaceProfile.new()
 	pace_profile.build(track)
 	car.failed.connect(_on_car_failed)

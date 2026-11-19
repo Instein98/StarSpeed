@@ -3,6 +3,8 @@ extends Node
 ## 阶段 1 的最简版：只读写键位，并把键位应用到 InputMap。其余内容在阶段 5、6 补全。
 
 signal changed
+## 设置改了（main 据此把自动挡开关传给 CarSim）
+signal settings_applied
 
 const PATH := "user://save.json"
 const REBINDABLE: Array[String] = ["throttle", "brake", "shift_up", "shift_down"]
@@ -29,6 +31,7 @@ var data: Dictionary = {
 	"vol_sfx": 8,
 	"fullscreen": true,
 	"ghost_on": true,
+	"auto_shift": false,
 }
 
 ## 音量设置对应的总线：音效 = 引擎、风声、音效（都经过 World）+ 轮胎 + 界面音
@@ -48,6 +51,7 @@ func _ready() -> void:
 
 ## 把音量、全屏设置应用上去。音量 10 = 总线原来的音量，0 = 静音，中间按分贝线性（每档约 3 dB）。
 func apply_settings() -> void:
+	settings_applied.emit()
 	for key: String in VOLUME_BUSES:
 		var v := clampi(int(data.get(key, 8)), 0, 10)
 		for bus_name: String in VOLUME_BUSES[key]:

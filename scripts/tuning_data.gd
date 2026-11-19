@@ -133,3 +133,7 @@ extends Resource
 @export var corner_perfect_ratio: float                  ## 弯里最高 车速 ÷ 极限车速 到这个值、没打滑 = 完美过弯
 @export var corner_great_ratio: float                    ## 到这个值、没打滑 = 漂亮
 @export var corner_min_time: float                       ## 在弯里不足这么多秒的不评价
+
+@export_group("自动挡辅助（开发者 2026-11-19）")
+@export var auto_downshift_max_rpm: float                ## 自动降档：降档后的转速不超过这个值才降
+@export var auto_downshift_low_rpm: float                ## 不踩刹车时，转速低于这个值才自动降档

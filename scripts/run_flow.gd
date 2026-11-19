@@ -27,8 +27,8 @@ const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
-const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "clear"]
-const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "清除成绩"]
+const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "clear"]
+const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "清除成绩"]
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
 const KEY_ROW_NAMES: Array[String] = ["油门", "刹车", "升档", "降档", "辅助：降档提示灯", "恢复默认"]
@@ -253,8 +253,8 @@ func _settings_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("confirm") or (not row.begins_with("vol_") and row != "clear" \
 			and (event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"))):
 		match row:
-			"fullscreen", "ghost_on":
-				SaveData.data[row] = not bool(SaveData.data.get(row, true))
+			"fullscreen", "ghost_on", "auto_shift":
+				SaveData.data[row] = not bool(SaveData.data.get(row, row != "auto_shift"))
 				SaveData.apply_settings()
 				SaveData.save()
 				_main.sfx.play("ui_ok")
@@ -276,7 +276,7 @@ func _draw_settings() -> void:
 	_draw_panel(Rect2(Vector2(220.0, 70.0), Vector2(520.0, 440.0)))
 	_text_center(Loc.t("设置"), 86.0 + 36.0, 36, COL_GOLD)
 	for i in SET_ROWS.size():
-		var y := 150.0 + 52.0 * i
+		var y := 146.0 + 46.0 * i
 		var row := SET_ROWS[i]
 		var sel := i == _set_sel
 		if row == "clear":
@@ -297,8 +297,9 @@ func _draw_settings() -> void:
 				else:
 					draw_rect(cell, ink, false, 1.0)
 		else:
-			var on := bool(SaveData.data.get(row, true))
-			draw_string(_font, Vector2(box.position.x, y + 30.0), Loc.t("开") if on else Loc.t("关"), HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
+			var on := bool(SaveData.data.get(row, row != "auto_shift"))
+			var word := (Loc.t("自动") if on else Loc.t("手动")) if row == "auto_shift" else (Loc.t("开") if on else Loc.t("关"))
+			draw_string(_font, Vector2(box.position.x, y + 30.0), word, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
 		if sel:
 			var tip := Vector2(232.0, y + 22.0)
 			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)

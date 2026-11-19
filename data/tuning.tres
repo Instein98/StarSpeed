@@ -110,3 +110,5 @@ music_fail_fade_s = 0.3
 corner_perfect_ratio = 0.96
 corner_great_ratio = 0.9
 corner_min_time = 0.4
+auto_downshift_max_rpm = 7600.0
+auto_downshift_low_rpm = 5200.0
