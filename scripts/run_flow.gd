@@ -645,6 +645,48 @@ func _leave_base() -> void:
 	_update_hint()
 
 
+# ───────────────────────── 区段标题卡（开发者 2026-11-19 第 2 轮 #1） ─────────────────────────
+## 过区段起点线（开始计时）时，挡风玻璃上方滑入"第 N 区段 · 名字"，下面一行是这个区段的最好成绩和下一枚奖牌的目标。
+
+const BANNER_TIME := 2.6
+var _banner_t := -1.0
+var _banner_index := 0
+
+
+func section_banner(index: int) -> void:
+	if state != State.RUN:
+		return
+	_banner_index = index
+	_banner_t = 0.0
+	_main.sfx.play("shine", -6.0)
+
+
+func _draw_banner() -> void:
+	if _banner_t < 0.0 or state != State.RUN or paused:
+		return
+	var t := _banner_t
+	var slide := clampf(t / 0.25, 0.0, 1.0)
+	var alpha := clampf((BANNER_TIME - t) / 0.4, 0.0, 1.0)
+	var x := lerpf(-260.0, 0.0, 1.0 - pow(1.0 - slide, 3.0))
+	var r := Rect2(Vector2(330.0 + x, 96.0), Vector2(300.0, 66.0))
+	draw_rect(Rect2(r.position + Vector2(4.0, 4.0), r.size), Color(COL_DARKER, 0.8 * alpha))
+	draw_rect(r, Color(COL_GOLD, alpha))
+	draw_rect(r.grow(-3.0), Color(COL_DARK, alpha))
+	var title := Loc.t("第 %d 区段") % (_banner_index + 1) + " · " + Loc.t(_track.section_names[_banner_index])
+	draw_string(_font, Vector2(r.position.x, r.position.y + 32.0), title, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 24, Color(COL_GOLD, alpha))
+	var best: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
+	var sub := ""
+	if float(best[_banner_index]) >= 0.0:
+		sub = Loc.t("最好") + " " + format_time(float(best[_banner_index]))
+	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
+	var tier := int(medals[_banner_index])
+	if tier < 4:
+		var th: PackedFloat32Array = [Tuning.d.t53_forest_thresholds, Tuning.d.t53_ice_thresholds, Tuning.d.t53_city_thresholds][_banner_index]
+		var next := maxi(tier + 1, 2)
+		sub += ("    " if sub != "" else "") + Loc.t(StickerDisplay.TIER_NAMES[next]) + " ≤ " + format_time(th[4 - next])
+	draw_string(_font, Vector2(r.position.x, r.position.y + 54.0), sub, HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 13, Color(COL_TEXT, alpha))
+
+
 ## 一键重开（main.restart_run 摆好车之后调用）：清空本局成绩，进入计时赛。
 func restart_state() -> void:
 	if paused:
@@ -885,6 +927,10 @@ func _process(delta: float) -> void:
 	_blink = fposmod(_blink + delta, 1.0)
 	if not paused:
 		_update_caption(delta)
+		if _banner_t >= 0.0:
+			_banner_t += delta
+			if _banner_t >= BANNER_TIME:
+				_banner_t = -1.0
 		if _medal_panel_t >= 0.0:
 			_medal_panel_t += delta
 			if _medal_panel_t >= 2.5:
@@ -943,6 +989,7 @@ func _draw_frame() -> void:
 	if _medal_panel_t >= 0.3 and state == State.RUN:
 		_draw_medal_panel()
 	_draw_corner_popup()
+	_draw_banner()
 
 
 ## 过弯评价：挡风玻璃下方正中，先放大弹出再淡出。完美 = 金黄，漂亮 = 暖白。

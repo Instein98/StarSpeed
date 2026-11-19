@@ -372,6 +372,8 @@ func _update_section_timer(delta: float) -> void:
 					ghost.section_finished(i - 1, flow.section_records[i - 1])
 				_timing_section = i if i < track.gate_s.size() - 1 else -1
 				_section_time = 0.0
+				if _timing_section >= 0:
+					flow.section_banner(_timing_section)
 	_prev_main_s = s
 
 
