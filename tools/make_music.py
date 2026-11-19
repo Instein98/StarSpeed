@@ -155,7 +155,29 @@ def drums_hat(open_=False):
     return noise * np.exp(-t * (18 if open_ else 80)) * 0.35
 
 
-def star():
+# 三个区段各一首（开发者 2026-11-19 第 3 轮 #6）：同样的速度、长度和结构，换调、和弦、主音的音色和走法。
+VARIANTS = {
+    # 森林：A 小调 Am F C G，方波 + 锯齿的明亮主音（原来那首）
+    "star": dict(prog=[(57, [0, 3, 7]), (53, [0, 4, 7]), (60, [0, 4, 7]), (55, [0, 4, 7])],
+                 lead=("square", "saw"), lead_cut=5200, lead_oct=12, sparse=False, verb=0.18, seed=172),
+    # 冰原：D 小调 Dm B♭ F C，三角波 + 正弦的冷亮主音，八分音符更稀，混响更大
+    "star_ice": dict(prog=[(62, [0, 3, 7]), (58, [0, 4, 7]), (65, [0, 4, 7]), (60, [0, 4, 7])],
+                     lead=("tri", "sine"), lead_cut=7000, lead_oct=12, sparse=True, verb=0.32, seed=273),
+    # 城市：E 小调 Em C G D，双锯齿的硬朗主音，低八度更有力
+    "star_city": dict(prog=[(52, [0, 3, 7]), (48, [0, 4, 7]), (55, [0, 4, 7]), (50, [0, 4, 7])],
+                      lead=("saw", "saw"), lead_cut=4200, lead_oct=12, sparse=False, verb=0.12, seed=374),
+}
+
+
+def star_all():
+    for name in VARIANTS:
+        star(name)
+
+
+def star(name="star"):
+    cfg = VARIANTS[name]
+    global rng
+    rng = np.random.default_rng(cfg["seed"])
     """分三轨导出（开发者 2026-11-16：分层音乐，跟着跑得好不好逐层叠加），三轨等长、同时开始播放：
     star_base  贝斯、铺底和弦、踩镲——计时赛和练习里一直有
     star_drums 底鼓、军鼓、开镲——跑得够快时加入
@@ -195,7 +217,7 @@ def star():
         place(mix, stereo(ohat * 0.35, 0.4), int((b0 + 6 * six) * RATE))
 
     # 和弦进行（A 小调，每两小节换一个）：Am F C G
-    prog = [(57, [0, 3, 7]), (53, [0, 4, 7]), (60, [0, 4, 7]), (55, [0, 4, 7])]
+    prog = cfg["prog"]
     bar_len = 4 * beat
     bass = np.zeros(n)
     pad = np.zeros(n)
@@ -218,9 +240,11 @@ def star():
         pad[idx] += pseg * adsr(m, 0.15, 0.4, 0.7, 0.2)
         # 明亮的主音：十六分音符的琶音，每 8 小节换一种走法
         pattern_kind = (bar // 8) % 3
-        tones = [root + 12 + iv for iv in chord] + [root + 24]
+        tones = [root + cfg["lead_oct"] + iv for iv in chord] + [root + cfg["lead_oct"] + 12]
         steps = 32
         for k in range(steps):
+            if cfg["sparse"] and k % 2 == 1:
+                continue                     # 冰原：八分音符
             if pattern_kind == 0:
                 note = tones[k % 4]
             elif pattern_kind == 1:
@@ -230,19 +254,21 @@ def star():
             st = s + int(k * six * RATE)
             ln = int(six * 0.9 * RATE)
             f = midi(note)
-            tone = 0.6 * osc(f, ln, "square") + 0.4 * osc(f * 1.005, ln, "saw")
+            if cfg["sparse"]:
+                ln = int(six * 1.8 * RATE)
+            tone = 0.6 * osc(f, ln, cfg["lead"][0]) + 0.4 * osc(f * 1.005, ln, cfg["lead"][1])
             seg = tone * adsr(ln, 0.003, 0.06, 0.45, 0.02)
             place(lead, seg, st)
     # 底轨单独放时没有底鼓，压缩只留一半，免得听起来在莫名其妙地抽动
     side = 0.5 + 0.5 * side
     bass = lowpass(bass, 380) * side
     pad = lowpass(pad, 2200) * side
-    lead = lowpass(lead, 5200)
+    lead = lowpass(lead, cfg["lead_cut"])
     base = hats + stereo(bass * 0.55)
     base += stereo(pad * 0.10, -0.4) * 0.5 + stereo(pad * 0.10, 0.4) * 0.5
     lead_st = delay(stereo(lead * 0.22), beat * 0.75, 0.45, 0.5)
-    lead_mix = reverb(lead_st, 1.2, 0.18, seed=3)
-    stems = {"star_base": np.tanh(base * 1.3), "star_drums": np.tanh(mix * 1.3), "star_lead": np.tanh(lead_mix * 1.3)}
+    lead_mix = reverb(lead_st, 1.2, cfg["verb"], seed=3)
+    stems = {name + "_base": np.tanh(base * 1.3), name + "_drums": np.tanh(mix * 1.3), name + "_lead": np.tanh(lead_mix * 1.3)}
     gain = 0.89 / max(1e-9, np.max(np.abs(sum(stems.values()))))
     for name, buf in stems.items():
         save(name, buf * gain, None)
@@ -300,6 +326,9 @@ def wind():
 
 if __name__ == "__main__":
     import sys
-    which = sys.argv[1:] or ["star", "ambient", "wind"]
+    which = sys.argv[1:] or ["star_all", "ambient", "wind"]
     for name in which:
-        globals()[name]()
+        if name in VARIANTS:
+            star(name)
+        else:
+            globals()[name]()

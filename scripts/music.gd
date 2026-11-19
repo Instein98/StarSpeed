@@ -15,12 +15,16 @@ const STAR_DB := -4.0
 const AMBIENT_DB := -12.0
 const AMBIENT_FADE := 2.0
 const GARAGE_KMH := 20.0
-const LAYERS := ["star_base", "star_drums", "star_lead"]
+const LAYERS := ["base", "drums", "lead"]
+## 三个区段各一首（第 3 轮 #6）：森林 star_*、冰原 star_ice_*、城市 star_city_*。过区段线时 2 秒交叉淡入淡出。
+const SECTION_TRACKS := ["star", "star_ice", "star_city"]
+const SECTION_FADE := 2.0
 enum { BASE, DRUMS, LEAD }
 
 var main: Node
-var _star: AudioStreamPlayer
-var _sync: AudioStreamSynchronized
+var _players: Array[AudioStreamPlayer] = []
+var _syncs: Array[AudioStreamSynchronized] = []
+var _sec_gain := [1.0, 0.0, 0.0]
 var _ambient: AudioStreamPlayer
 var _ambient_gain := 0.0
 var _gain := [0.0, 0.0, 0.0]
@@ -32,16 +36,19 @@ var pace := 0.0
 
 
 func _ready() -> void:
-	_sync = AudioStreamSynchronized.new()
-	_sync.stream_count = LAYERS.size()
-	for i in LAYERS.size():
-		_sync.set_sync_stream(i, EngineAudio.load_stream(DIR + LAYERS[i] + ".ogg", true))
-		_sync.set_sync_stream_volume(i, -80.0)
-	_star = AudioStreamPlayer.new()
-	_star.bus = &"Music"
-	_star.stream = _sync
-	_star.volume_db = STAR_DB
-	add_child(_star)
+	for track in SECTION_TRACKS:
+		var sync := AudioStreamSynchronized.new()
+		sync.stream_count = LAYERS.size()
+		for i in LAYERS.size():
+			sync.set_sync_stream(i, EngineAudio.load_stream(DIR + track + "_" + LAYERS[i] + ".ogg", true))
+			sync.set_sync_stream_volume(i, -80.0)
+		var p := AudioStreamPlayer.new()
+		p.bus = &"Music"
+		p.stream = sync
+		p.volume_db = STAR_DB
+		add_child(p)
+		_syncs.append(sync)
+		_players.append(p)
 	_ambient = _make("ambient")
 
 
@@ -91,15 +98,24 @@ func _update_star(delta: float, driving: bool, car: CarSim) -> void:
 		if _fail_cut and i != BASE:
 			fade = t.music_fail_fade_s
 		_gain[i] = move_toward(_gain[i], 1.0 if _on[i] else 0.0, delta / maxf(fade, 0.01))
-		_sync.set_sync_stream_volume(i, linear_to_db(maxf(_gain[i], 0.0001)))
 	var any: bool = _gain.any(func(g): return g > 0.001)
-	if not any:
-		if _star.playing:
-			_star.stream_paused = true
-	elif _star.stream_paused:
-		_star.stream_paused = false
-	elif not _star.playing:
-		_star.play()
+	# 现在是哪个区段的曲子：主赛道按里程，其余（出库路、环道）用森林那首
+	var want := 0
+	if car.path_id == Track.PATH_MAIN:
+		want = clampi(main.track.section_index_at(car.s), 0, SECTION_TRACKS.size() - 1)
+	for k in SECTION_TRACKS.size():
+		_sec_gain[k] = move_toward(_sec_gain[k], 1.0 if k == want else 0.0, delta / SECTION_FADE)
+		var p := _players[k]
+		for i in LAYERS.size():
+			_syncs[k].set_sync_stream_volume(i, linear_to_db(maxf(_gain[i], 0.0001)))
+		p.volume_db = STAR_DB + linear_to_db(maxf(_sec_gain[k], 0.0001))
+		if not any or _sec_gain[k] <= 0.001:
+			if p.playing:
+				p.stream_paused = true
+		elif p.stream_paused:
+			p.stream_paused = false
+		elif not p.playing:
+			p.play()
 
 
 ## 一层的加入 / 退出（带防抖）。
