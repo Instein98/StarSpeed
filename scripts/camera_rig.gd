@@ -128,8 +128,12 @@ func _process(delta: float) -> void:
 
 	# —— 视野（T-30、T-47、T-31、T-32）——
 	var k_fov := _k(delta, t.t31_fov_smooth_time)
-	_fov_world += (Tuning.curve(t.t30_world_fov_curve, kmh) - _fov_world) * k_fov
-	_fov_cockpit += (Tuning.curve(t.t47_cockpit_fov_curve, kmh) - _fov_cockpit) * k_fov
+	# 画面效果强度（设置）：视野随车速变宽的幅度按倍数缩小
+	var fxs := SaveData.fx_scale()
+	var fw0 := Tuning.curve(t.t30_world_fov_curve, 0.0)
+	var fc0 := Tuning.curve(t.t47_cockpit_fov_curve, 0.0)
+	_fov_world += (fw0 + (Tuning.curve(t.t30_world_fov_curve, kmh) - fw0) * fxs - _fov_world) * k_fov
+	_fov_cockpit += (fc0 + (Tuning.curve(t.t47_cockpit_fov_curve, kmh) - fc0) * fxs - _fov_cockpit) * k_fov
 	if t.t32_fov_pulse_time > 0.0:
 		_pulse = maxf(0.0, _pulse - t.t32_fov_pulse_deg / t.t32_fov_pulse_time * delta)
 
@@ -179,7 +183,7 @@ func _process(delta: float) -> void:
 	var lean := -_understeer * t.understeer_roll_deg   # 左弯头向左歪（_roll 的正方向是向右）
 
 	# —— 震动（T-37，7.3）：各来源取最大值，不相加；上下、左右各自独立的随机噪声 ——
-	var amp := Tuning.table(t.fx_speed_kmh, t.fx_shake_mm, v_fx)
+	var amp := Tuning.table(t.fx_speed_kmh, t.fx_shake_mm, v_fx) * SaveData.fx_scale()
 	if car.tire_zone == CarSim.Zone.TWO:
 		amp = maxf(amp, t.t37_zone2_mm)
 	elif car.tire_zone == CarSim.Zone.THREE:

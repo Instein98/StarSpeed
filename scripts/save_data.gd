@@ -32,7 +32,16 @@ var data: Dictionary = {
 	"fullscreen": true,
 	"ghost_on": true,
 	"auto_shift": false,
+	"speedo": false,        # 车速数字（第 2 轮 #6）
+	"fx_level": 0,          # 画面效果强度（第 2 轮 #7）：0 完整、1 减弱、2 最弱
 }
+
+## 画面效果强度对应的倍数（震动、景物拉线、视野随车速变宽的幅度）
+const FX_SCALES: Array[float] = [1.0, 0.55, 0.25]
+
+
+func fx_scale() -> float:
+	return FX_SCALES[clampi(int(data.get("fx_level", 0)), 0, FX_SCALES.size() - 1)]
 
 ## 音量设置对应的总线：音效 = 引擎、风声、音效（都经过 World）+ 轮胎 + 界面音
 const VOLUME_BUSES := {"vol_master": ["Master"], "vol_music": ["Music"], "vol_sfx": ["World", "Tires", "UI"]}

@@ -28,8 +28,9 @@ const BASE_PRACTICE := 4
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
-const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "lang", "clear"]
-const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "语言", "清除成绩"]
+const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "speedo", "fx_level", "lang", "clear"]
+const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "车速数字", "画面效果", "语言", "清除成绩"]
+const FX_LEVEL_NAMES: Array[String] = ["完整", "减弱", "最弱"]
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
 const KEY_ROW_NAMES: Array[String] = ["油门", "刹车", "升档", "降档", "辅助：降档提示灯", "恢复默认"]
@@ -298,8 +299,13 @@ func _settings_input(event: InputEvent) -> void:
 			"lang":
 				Loc.toggle()
 				_main.sfx.play("ui_ok")
-			"fullscreen", "ghost_on", "auto_shift":
-				SaveData.data[row] = not bool(SaveData.data.get(row, row != "auto_shift"))
+			"fx_level":
+				var step := -1 if event.is_action_pressed("ui_left") else 1
+				SaveData.data["fx_level"] = posmod(int(SaveData.data.get("fx_level", 0)) + step, FX_LEVEL_NAMES.size())
+				SaveData.save()
+				_main.sfx.play("ui_ok")
+			"fullscreen", "ghost_on", "auto_shift", "speedo":
+				SaveData.data[row] = not bool(SaveData.data.get(row, _default_on(row)))
 				SaveData.apply_settings()
 				SaveData.save()
 				_main.sfx.play("ui_ok")
@@ -316,12 +322,16 @@ func _settings_input(event: InputEvent) -> void:
 					_main.sfx.play("ui_ok")
 
 
+func _default_on(row: String) -> bool:
+	return row in ["fullscreen", "ghost_on"]
+
+
 func _draw_settings() -> void:
 	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
-	_draw_panel(Rect2(Vector2(220.0, 70.0), Vector2(520.0, 440.0)))
-	_text_center(Loc.t("设置"), 86.0 + 36.0, 36, COL_GOLD)
+	_draw_panel(Rect2(Vector2(220.0, 30.0), Vector2(520.0, 500.0)))
+	_text_center(Loc.t("设置"), 44.0 + 32.0, 32, COL_GOLD)
 	for i in SET_ROWS.size():
-		var y := 142.0 + 41.0 * i
+		var y := 96.0 + 38.0 * i
 		var row := SET_ROWS[i]
 		var sel := i == _set_sel
 		if row == "clear":
@@ -329,7 +339,7 @@ func _draw_settings() -> void:
 			_draw_button(label, Vector2(480.0, y), sel, true)
 			continue
 		draw_string(_font, Vector2(250.0, y + 26.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
-		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 36.0))
+		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 34.0))
 		draw_rect(box, COL_TEXT)
 		draw_rect(box.grow(-4.0), COL_GOLD if sel else COL_DARK)
 		var ink := COL_DARK if sel else COL_TEXT
@@ -345,14 +355,16 @@ func _draw_settings() -> void:
 			var word := ""
 			if row == "lang":
 				word = "中文" if Loc.lang() == "zh" else "English"
+			elif row == "fx_level":
+				word = Loc.t(FX_LEVEL_NAMES[clampi(int(SaveData.data.get("fx_level", 0)), 0, 2)])
 			else:
-				var on := bool(SaveData.data.get(row, row != "auto_shift"))
+				var on := bool(SaveData.data.get(row, _default_on(row)))
 				word = (Loc.t("自动") if on else Loc.t("手动")) if row == "auto_shift" else (Loc.t("开") if on else Loc.t("关"))
 			draw_string(_font, Vector2(box.position.x, y + 26.0), word, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
 		if sel:
 			var tip := Vector2(232.0, y + 18.0)
 			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)
-	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("↑ ↓ 选择   ← → 调整   回车 切换   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
+	draw_string(_font, Vector2(0.0, 506.0 + 12.0), Loc.t("↑ ↓ 选择   ← → 调整   回车 切换   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
 
 
 # ───────────────────────── 邀请函与开场字幕（9.3） ─────────────────────────
@@ -1016,6 +1028,12 @@ func _unhandled_input(event: InputEvent) -> void:
 				_leave_ending()
 
 
+## 窗口失去焦点（切到别的程序）时自动暂停（开发者 2026-11-19 第 2 轮 #8）：只在驾驶中。
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT and not paused and state in [State.RUN, State.PRACTICE] 			and not _keys_open and not _set_open:
+		_set_paused(true)
+
+
 func _set_paused(on: bool) -> void:
 	paused = on
 	_pause_select = 0
@@ -1117,6 +1135,16 @@ func _draw_frame() -> void:
 		_draw_medal_panel()
 	_draw_corner_popup()
 	_draw_banner()
+	_draw_speedo()
+
+
+## 车速数字（设置里开，默认关；开发者 2026-11-19 第 2 轮 #6）：左上角。
+func _draw_speedo() -> void:
+	if not bool(SaveData.data.get("speedo", false)) or paused or not (state in [State.RUN, State.PRACTICE]):
+		return
+	var kmh := roundi(_car.v / CarSim.KMH)
+	draw_string(_font, Vector2(24.0, 40.0), "%d" % kmh, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 28, COL_TEXT)
+	draw_string(_font, Vector2(24.0 + 64.0, 40.0), "km/h", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
 
 ## 过弯评价：挡风玻璃下方正中，先放大弹出再淡出。完美 = 金黄，漂亮 = 暖白。

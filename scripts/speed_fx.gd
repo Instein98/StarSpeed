@@ -31,9 +31,9 @@ func _process(delta: float) -> void:
 	var t := Tuning.d
 	var kmh := car.v / CarSim.KMH
 	v_fx += (kmh - v_fx) * (1.0 - exp(-delta / maxf(t.t41_vfx_smooth_time, 0.001)))
-	mat.set_shader_parameter("streak", Tuning.table(t.fx_speed_kmh, t.fx_streak, v_fx))
+	mat.set_shader_parameter("streak", Tuning.table(t.fx_speed_kmh, t.fx_streak, v_fx) * SaveData.fx_scale())
 	mat.set_shader_parameter("clear_radius", Tuning.table(t.fx_speed_kmh, t.fx_clear_radius, v_fx))
-	mat.set_shader_parameter("line_strength", Tuning.table(t.fx_speed_kmh, t.fx_line, v_fx))
+	mat.set_shader_parameter("line_strength", Tuning.table(t.fx_speed_kmh, t.fx_line, v_fx) * SaveData.fx_scale())
 	mat.set_shader_parameter("mode_b", t.t48_fx_mode == "B")
 	var motion := t.t48_fx_mode == "M"
 	mat.set_shader_parameter("motion_mode", motion)
