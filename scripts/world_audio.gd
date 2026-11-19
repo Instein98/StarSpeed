@@ -42,6 +42,10 @@ func setup(p_main: Node, p_car: CarSim) -> void:
 		if AudioServer.get_bus_effect(bus, i) is AudioEffectLowPassFilter:
 			_lowpass = AudioServer.get_bus_effect(bus, i)
 	car.shift_started.connect(_on_shift)
+	# S-08（第 4 轮 #3）：车速上穿 350 km/h 时一次性的"吸进去"轰鸣；回落到 330 以下才能再次触发（T-40，CarSim 里已有回差）
+	car.star_speed_changed.connect(func(on: bool) -> void:
+		if on and car.mode == CarSim.Mode.DRIVE and main.flow.state in [RunFlow.State.RUN, RunFlow.State.PRACTICE]:
+			main.sfx.play("star_warp"))
 	car.throttle_changed.connect(_on_throttle)
 
 

@@ -14,6 +14,7 @@
   shine.wav     S-25 高光扫过：轻的上扫
   whiteout.wav  S-27 终点白化：长的上扬亮音
   pass.wav      S-09 高速穿过门、拱门、龙门架：短促的"呼"
+  star_warp.wav S-08 进入星速：被吸进去的低沉轰鸣 + 高频上扬（python tools/make_sfx.py warp）
   record.wav    刷新纪录的琶音（python tools/make_sfx.py record）
   rumble.wav    擦护栏预警：路肩的"突突突"，1 秒循环（python tools/make_sfx.py rumble）
   corner_perfect.wav / corner_great.wav  过弯评价的铃声（只生成这两个：python tools/make_sfx.py corner）
@@ -173,6 +174,30 @@ def corner_chimes():
     write("corner_great.wav", concat(blip(1175, 1175, 0.05, "triangle", 0.5), blip(1568, 1568, 0.16, "triangle", 0.5)))
 
 
+def star_warp():
+    """S-08 进入星速（规格 10.3）：一声被吸进去的低沉轰鸣 + 高频上扬，1.0 秒。
+    低频：60 → 32 Hz 的正弦，先吸进来（音量 0.15 秒内涨满）再衰减；中间一层反向包络的噪声（越来越大，最后突然收住）；
+    高频：1.5 → 7 kHz 的上扬扫频。"""
+    rnd = random.Random(808)
+    n = RATE
+    out = []
+    ph_lo = 0.0
+    ph_hi = 0.0
+    noise_y = 0.0
+    for i in range(n):
+        t = i / RATE
+        f_lo = 60 - 28 * t
+        ph_lo += f_lo / RATE
+        lo = math.sin(2 * math.pi * ph_lo) * min(1.0, t / 0.15) * math.exp(-max(0.0, t - 0.15) * 3.5)
+        f_hi = 1500 + 5500 * t ** 1.5
+        ph_hi += f_hi / RATE
+        hi = math.sin(2 * math.pi * ph_hi) * 0.18 * math.sin(math.pi * t) ** 2
+        noise_y += 0.25 * ((rnd.random() * 2 - 1) - noise_y)
+        swell = noise_y * 0.5 * (t / 0.55) ** 2 if t < 0.55 else noise_y * 0.5 * math.exp(-(t - 0.55) * 18)
+        out.append(lo * 0.9 + hi + swell)
+    return out
+
+
 def record_fanfare():
     """刷新纪录（开发者 2026-11-19 第 3 轮 #4）：大三和弦琶音上行 + 最后一个长音。"""
     notes = [(784, 0.07), (988, 0.07), (1175, 0.07), (1568, 0.35)]
@@ -218,9 +243,13 @@ if __name__ == "__main__":
         write("rumble.wav", rumble())
     elif sys.argv[1:] == ["record"]:
         write("record.wav", record_fanfare())
+        write("star_warp.wav", star_warp())
+    elif sys.argv[1:] == ["warp"]:
+        write("star_warp.wav", star_warp())
     else:
         write("pass.wav", passby())
         main()
         corner_chimes()
         write("rumble.wav", rumble())
         write("record.wav", record_fanfare())
+        write("star_warp.wav", star_warp())
