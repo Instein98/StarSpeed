@@ -137,3 +137,7 @@ extends Resource
 @export_group("自动挡辅助（开发者 2026-11-19）")
 @export var auto_downshift_max_rpm: float                ## 自动降档：降档后的转速不超过这个值才降
 @export var auto_downshift_low_rpm: float                ## 不踩刹车时，转速低于这个值才自动降档
+
+@export_group("擦护栏预警（开发者 2026-11-19）")
+@export var rail_warn_frac: float                        ## 外滑到 slide_frac 这个值开始预警（1 = 撞上护栏）
+@export var rail_warn_shake_mm: float                    ## 贴到护栏前一刻的座舱震动幅度

@@ -196,6 +196,11 @@ func _process(delta: float) -> void:
 		amp = maxf(amp, t.t37_struggle_mm)
 		world_amp = t.t37_struggle_mm
 		roll_jitter_amp = t.t37_struggle_roll_deg
+	# 擦护栏预警：离护栏越近震得越厉害（第 3 轮 #2）
+	var warn := WorldAudio.rail_warning(car)
+	if warn > 0.0:
+		amp = maxf(amp, t.rail_warn_shake_mm * warn * SaveData.fx_scale())
+		world_amp = maxf(world_amp, t.rail_warn_shake_mm * 0.5 * warn * SaveData.fx_scale())
 	shake_mm = amp
 	_shake_phase += delta * t.t37_freq_hz
 	while _shake_phase >= 1.0:

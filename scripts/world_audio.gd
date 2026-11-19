@@ -15,10 +15,13 @@ const POP_DOWNSHIFT_RPM := 5000.0
 const POP_GAP := 1.5
 const POP_SPACING := 0.09
 const PASS_MIN_KMH := 200.0
+const RUMBLE_PATH := "res://assets/audio/sfx/rumble.wav"
+const RUMBLE_DB := -4.0
 
 var main: Node
 var car: CarSim
 var _wind: AudioStreamPlayer
+var _rumble: AudioStreamPlayer
 var _lowpass: AudioEffectLowPassFilter
 var _last_pop := -10.0
 var _time := 0.0
@@ -33,12 +36,19 @@ func setup(p_main: Node, p_car: CarSim) -> void:
 	car = p_car
 	_rng.seed = 707
 	_wind = EngineAudio.make_player(self, EngineAudio.load_stream(WIND_PATH, true), &"Wind")
+	_rumble = EngineAudio.make_player(self, EngineAudio.load_stream(RUMBLE_PATH, true), &"SFX")
 	var bus := AudioServer.get_bus_index(&"World")
 	for i in AudioServer.get_bus_effect_count(bus):
 		if AudioServer.get_bus_effect(bus, i) is AudioEffectLowPassFilter:
 			_lowpass = AudioServer.get_bus_effect(bus, i)
 	car.shift_started.connect(_on_shift)
 	car.throttle_changed.connect(_on_throttle)
+
+
+## 0 – 1：车离护栏有多近（slide_frac 超过 rail_warn_frac 开始，到撞车时为 1）。镜头震动和屏幕边缘红光也用它。
+static func rail_warning(c: CarSim) -> float:
+	var w := Tuning.d.rail_warn_frac
+	return clampf((c.slide_frac - w) / maxf(1.0 - w, 0.01), 0.0, 1.0)
 
 
 func _process(delta: float) -> void:
@@ -52,6 +62,10 @@ func _process(delta: float) -> void:
 	var gain := Tuning.table(t.fx_speed_kmh, t.fx_wind, v_fx) if moving else 0.0
 	_wind.volume_db = linear_to_db(gain) if gain > 0.0001 else -80.0
 	_wind.pitch_scale = 0.8 + kmh / 720.0 * 0.6
+	# 擦护栏预警（第 3 轮 #2）：滑到离护栏不远时，路肩"突突突"，越近越响，车越快越密
+	var warn := rail_warning(car)
+	_rumble.volume_db = RUMBLE_DB + linear_to_db(warn) if warn > 0.001 and car.mode == CarSim.Mode.DRIVE else -80.0
+	_rumble.pitch_scale = clampf(kmh / 250.0, 0.5, 2.5)
 	if _lowpass != null:
 		var k := smoothstep(t.t44_fade_start_kmh, t.t44_fade_full_kmh, v_fx)
 		_lowpass.cutoff_hz = LOWPASS_MAX - (LOWPASS_MAX - LOWPASS_MIN) * k

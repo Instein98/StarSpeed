@@ -1156,9 +1156,29 @@ func _draw_frame() -> void:
 		_draw_recent()
 	if _medal_panel_t >= 0.3 and state == State.RUN:
 		_draw_medal_panel()
+	_draw_rail_glow()
 	_draw_corner_popup()
 	_draw_banner()
 	_draw_speedo()
+
+
+## 擦护栏预警的屏幕边缘红光（第 3 轮 #2）：在滑出去的那一侧，从边缘向内渐隐，按 8 Hz 闪。
+func _draw_rail_glow() -> void:
+	if paused or not (state in [State.RUN, State.PRACTICE]):
+		return
+	var warn := WorldAudio.rail_warning(_car)
+	if warn <= 0.0:
+		return
+	var pulse := 0.65 + 0.35 * sin(Time.get_ticks_msec() / 1000.0 * TAU * 8.0)
+	var a := warn * pulse * 0.75
+	var w := 120.0 * (0.4 + 0.6 * warn)
+	var right := _car.lat > 0.0
+	var x0 := GRID.x if right else 0.0
+	var x1 := GRID.x - w if right else w
+	var edge := Color(COL_RED, a)
+	var clear := Color(COL_RED, 0.0)
+	draw_polygon(PackedVector2Array([Vector2(x0, 0.0), Vector2(x1, 0.0), Vector2(x1, GRID.y), Vector2(x0, GRID.y)]),
+			PackedColorArray([edge, clear, clear, edge]))
 
 
 ## 车速数字（设置里开，默认关；开发者 2026-11-19 第 2 轮 #6）：左上角。
