@@ -24,8 +24,11 @@ const COL_SHADE := Color(0.06, 0.08, 0.13, 0.72)
 const COL_FASTER := Color("7bd65a")
 const COL_SLOWER := Color("ef4a2f")
 const BASE_OPTIONS: Array[String] = ["主赛道  计时赛", "练习环道"]
-const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "键位设置", "回大本营", "回到标题", "退出游戏"]
+const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
+## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
+const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "clear"]
+const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "清除成绩"]
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
 const KEY_ROW_NAMES: Array[String] = ["油门", "刹车", "升档", "降档", "辅助：降档提示灯", "恢复默认"]
@@ -191,6 +194,89 @@ func _draw_keys() -> void:
 	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("回车 改键   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
 
 
+# ───────────────────────── 设置（开发者 2026-11-19 第 1 轮 #4） ─────────────────────────
+
+var _set_open := false
+var _set_sel := 0
+var _clear_armed := false
+
+
+func open_settings() -> void:
+	_set_open = true
+	_set_sel = 0
+	_clear_armed = false
+
+
+func _settings_input(event: InputEvent) -> void:
+	var row := SET_ROWS[_set_sel]
+	if event.is_action_pressed("pause"):
+		_set_open = false
+		_main.sfx.play("ui_back")
+	elif event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down"):
+		_set_sel = posmod(_set_sel + (-1 if event.is_action_pressed("ui_up") else 1), SET_ROWS.size())
+		_clear_armed = false
+		_main.sfx.play("ui_move")
+	elif row.begins_with("vol_") and (event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right")):
+		var step := -1 if event.is_action_pressed("ui_left") else 1
+		SaveData.data[row] = clampi(int(SaveData.data.get(row, 8)) + step, 0, 10)
+		SaveData.apply_settings()
+		SaveData.save()
+		_main.sfx.play("ui_move")
+	elif event.is_action_pressed("confirm") or (not row.begins_with("vol_") and row != "clear" \
+			and (event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"))):
+		match row:
+			"fullscreen", "ghost_on":
+				SaveData.data[row] = not bool(SaveData.data.get(row, true))
+				SaveData.apply_settings()
+				SaveData.save()
+				_main.sfx.play("ui_ok")
+			"clear":
+				if not _clear_armed:
+					_clear_armed = true
+					_main.sfx.play("ui_move")
+				else:
+					_clear_armed = false
+					SaveData.clear_records()
+					_main.ghost.best = [PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array()]
+					for i in 3:
+						_cockpit.stickers.set_tier(i, 0)
+					_main.sfx.play("ui_ok")
+
+
+func _draw_settings() -> void:
+	draw_rect(Rect2(Vector2.ZERO, GRID), COL_SHADE)
+	_draw_panel(Rect2(Vector2(220.0, 70.0), Vector2(520.0, 440.0)))
+	_text_center(Loc.t("设置"), 86.0 + 36.0, 36, COL_GOLD)
+	for i in SET_ROWS.size():
+		var y := 150.0 + 52.0 * i
+		var row := SET_ROWS[i]
+		var sel := i == _set_sel
+		if row == "clear":
+			var label := Loc.t("再按一次回车确认") if _clear_armed else Loc.t(SET_ROW_NAMES[i])
+			_draw_button(label, Vector2(480.0, y), sel, true)
+			continue
+		draw_string(_font, Vector2(250.0, y + 30.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
+		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 44.0))
+		draw_rect(box, COL_TEXT)
+		draw_rect(box.grow(-4.0), COL_GOLD if sel else COL_DARK)
+		var ink := COL_DARK if sel else COL_TEXT
+		if row.begins_with("vol_"):
+			var v := int(SaveData.data.get(row, 8))
+			for k in 10:
+				var cell := Rect2(Vector2(box.position.x + 14.0 + k * 15.5, y + 12.0), Vector2(11.0, 20.0))
+				if k < v:
+					draw_rect(cell, ink)
+				else:
+					draw_rect(cell, ink, false, 1.0)
+		else:
+			var on := bool(SaveData.data.get(row, true))
+			draw_string(_font, Vector2(box.position.x, y + 30.0), Loc.t("开") if on else Loc.t("关"), HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
+		if sel:
+			var tip := Vector2(232.0, y + 22.0)
+			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)
+	draw_string(_font, Vector2(0.0, 486.0 + 12.0), Loc.t("↑ ↓ 选择   ← → 调整   回车 切换   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
+
+
 # ───────────────────────── 邀请函与开场字幕（9.3） ─────────────────────────
 
 func play_intro() -> void:
@@ -243,6 +329,7 @@ func _draw_invite() -> void:
 ## 标题画面的按钮：[文字, 可用, 动作]。键位设置、语言、重看开场在后面的功能里接上。
 func title_buttons() -> Array:
 	var list := [[Loc.t("开始"), true, "start"]]
+	list.append([Loc.t("设置"), true, "settings"])
 	list.append([Loc.t("键位设置"), true, "keys"])
 	list.append([Loc.t("语言：中文"), true, "lang"])
 	if bool(SaveData.data.get("intro_seen", false)):
@@ -333,6 +420,8 @@ func _title_choose() -> void:
 				enter_ignite()
 		"keys":
 			open_keys()
+		"settings":
+			open_settings()
 		"intro":
 			play_intro()
 		"lang":
@@ -645,6 +734,10 @@ func _update_hint() -> void:
 # ───────────────────────── 输入 ─────────────────────────
 
 func _unhandled_input(event: InputEvent) -> void:
+	if _set_open:
+		_settings_input(event)
+		get_viewport().set_input_as_handled()
+		return
 	if _keys_open:
 		_keys_input(event)
 		get_viewport().set_input_as_handled()
@@ -708,20 +801,22 @@ func _set_paused(on: bool) -> void:
 
 
 func _pause_choose() -> void:
-	match _pause_items()[_pause_select]:
-		0:
+	match PAUSE_OPTIONS[_pause_items()[_pause_select]]:
+		"继续":
 			_set_paused(false)
-		PAUSE_RESTART:
+		"重新开始":
 			_main.call("restart_run")
-		2:
+		"设置":
+			open_settings()
+		"键位设置":
 			open_keys()
-		3:
+		"回大本营":
 			_set_paused(false)
 			_main.call("return_to_base")
-		4:
+		"回到标题":
 			_set_paused(false)
 			_main.call("return_to_title")
-		5:
+		"退出游戏":
 			get_tree().quit()
 
 
@@ -749,6 +844,8 @@ func _draw() -> void:
 	_draw_caption()
 	if _keys_open:
 		_draw_keys()
+	if _set_open:
+		_draw_settings()
 
 
 func _draw_frame() -> void:

@@ -23,7 +23,17 @@ var data: Dictionary = {
 	"tip_downshift_shown": false,
 	"assist_downshift_lamp": false,
 	"lang": "zh",
+	# 设置（开发者 2026-11-19 第 1 轮 #4）：音量 0–10，全屏，幽灵
+	"vol_master": 8,
+	"vol_music": 8,
+	"vol_sfx": 8,
+	"fullscreen": true,
+	"ghost_on": true,
 }
+
+## 音量设置对应的总线：音效 = 引擎、风声、音效（都经过 World）+ 轮胎 + 界面音
+const VOLUME_BUSES := {"vol_master": ["Master"], "vol_music": ["Music"], "vol_sfx": ["World", "Tires", "UI"]}
+var _bus_base_db := {}
 
 
 func _ready() -> void:
@@ -33,6 +43,41 @@ func _ready() -> void:
 	data["lang"] = "zh" if OS.get_locale_language() == "zh" else "en"
 	_load()
 	_apply_keys()
+	apply_settings()
+
+
+## 把音量、全屏设置应用上去。音量 10 = 总线原来的音量，0 = 静音，中间按分贝线性（每档约 3 dB）。
+func apply_settings() -> void:
+	for key: String in VOLUME_BUSES:
+		var v := clampi(int(data.get(key, 8)), 0, 10)
+		for bus_name: String in VOLUME_BUSES[key]:
+			var idx := AudioServer.get_bus_index(bus_name)
+			if idx < 0:
+				continue
+			if not _bus_base_db.has(bus_name):
+				_bus_base_db[bus_name] = AudioServer.get_bus_volume_db(idx)
+			AudioServer.set_bus_volume_db(idx, float(_bus_base_db[bus_name]) + (v - 10) * 3.0 if v > 0 else -80.0)
+	if DisplayServer.get_name() != "headless":
+		var want := DisplayServer.WINDOW_MODE_FULLSCREEN if bool(data.get("fullscreen", true)) else DisplayServer.WINDOW_MODE_WINDOWED
+		var now := DisplayServer.window_get_mode()
+		var is_full := now == DisplayServer.WINDOW_MODE_FULLSCREEN or now == DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN
+		if is_full != (want == DisplayServer.WINDOW_MODE_FULLSCREEN):
+			DisplayServer.window_set_mode(want)
+			if want == DisplayServer.WINDOW_MODE_WINDOWED:
+				DisplayServer.window_set_size(Vector2i(1600, 900))
+				var screen := DisplayServer.screen_get_size()
+				DisplayServer.window_set_position((screen - Vector2i(1600, 900)) / 2)
+
+
+## 清除成绩：最好成绩、区段最好、奖牌、幽灵记录。键位、语言、设置、开场和教学进度保留。
+func clear_records() -> void:
+	data["best_total"] = -1.0
+	data["best_sections"] = [-1.0, -1.0, -1.0]
+	data["best_medals"] = [0, 0, 0]
+	save()
+	if FileAccess.file_exists(Ghost.PATH):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(Ghost.PATH))
+	changed.emit()
 
 
 ## 改键（4.1、9.10）：绑定已被别的动作占用的键时两个动作互换。返回 false = 这个键不允许。
