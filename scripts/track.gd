@@ -422,7 +422,7 @@ func _build_meshes() -> void:
 		var b := section_start[i + 1] + GROUND_OVERLAP
 		if i == section_names.size() - 1:
 			b = main_total
-		_build_ground(PATH_MAIN, a, minf(b, main_total), SECTION_GROUND_Y[i], COL_GROUND[i], gv, gc)
+		_build_ground(PATH_MAIN, a, minf(b, main_total), SECTION_GROUND_Y[i], COL_GROUND[i], gv, gc, _ground_color)
 	var lake := main_data.seg_label.find(LAKE_SEG_LABEL)
 	if lake >= 0:
 		var mp := _pt[PATH_MAIN]
@@ -472,6 +472,21 @@ func _build_checker(line_s: float, v: PackedVector3Array, c: PackedColorArray) -
 
 
 ## 路边护栏（高架护墙）内侧面离中心线的距离：车滑到 slide_wall_m 撞车时，车身正好贴上它（开发者 2026-11-19：不能穿过护栏）。
+## 区段交界的过渡带（开发者 2026-11-19：按现实情况混合）：交界线前后各这么多米，两个区段的景物混着出现、地面颜色渐变。
+const SECTION_TRANSITION := 250.0
+
+
+## 主赛道里程 s 处，区段 section 的"占比"：区段内部 1；交界线上 0.5；离开交界线 SECTION_TRANSITION 以外 0。
+func section_share(section: int, s: float) -> float:
+	var share := 1.0
+	var t := SECTION_TRANSITION
+	if section > 0:
+		share = minf(share, clampf(0.5 + (s - section_start[section]) / (2.0 * t), 0.0, 1.0))
+	if section < section_names.size() - 1:
+		share = minf(share, clampf(0.5 + (section_start[section + 1] - s) / (2.0 * t), 0.0, 1.0))
+	return share
+
+
 static func barrier_inner() -> float:
 	return Tuning.d.slide_wall_m + Tuning.d.guardrail_gap_m
 
@@ -549,8 +564,19 @@ func _build_road(path_id: int, v: PackedVector3Array, c: PackedColorArray) -> vo
 					_quad(v, c, oa2, oa2 + top, ob2, ob2 + top, COL_PARAPET)
 
 
+## 主赛道地面在交界过渡带里的颜色：按两个区段的占比混合（压色板后由抖动表现成两种地面掺在一起）。
+func _ground_color(s: float) -> Color:
+	var col := Color(0, 0, 0, 0)
+	var total := 0.0
+	for i in section_names.size():
+		var w := section_share(i, s)
+		col += COL_GROUND[i] * w
+		total += w
+	return col / maxf(total, 0.0001)
+
+
 func _build_ground(path_id: int, s_from: float, s_to: float, height: float, col: Color,
-		v: PackedVector3Array, c: PackedColorArray) -> void:
+		v: PackedVector3Array, c: PackedColorArray, col_at := Callable()) -> void:
 	var pt := _pt[path_id]
 	var have_prev := false
 	var pl := Vector3.ZERO
@@ -563,7 +589,7 @@ func _build_ground(path_id: int, s_from: float, s_to: float, height: float, col:
 		var l := Vector3(p.x, height, p.z) - r * GROUND_HALF_WIDTH
 		var rr := Vector3(p.x, height, p.z) + r * GROUND_HALF_WIDTH
 		if have_prev:
-			_quad(v, c, pl, pr, l, rr, col)
+			_quad(v, c, pl, pr, l, rr, col_at.call(s - GROUND_STEP * 0.5) if col_at.is_valid() else col)
 		pl = l
 		pr = rr
 		have_prev = true

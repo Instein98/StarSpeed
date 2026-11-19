@@ -13,8 +13,8 @@ extends Node3D
 const CHUNK := 800.0
 const GRID_CELL := 64.0
 const GRID_STEP := 4.0
-const SECTION_BLEND := 150.0       ## 6.5.4：区段起点线前后 150 m 内密度降到 30%
-const SECTION_BLEND_KEEP := 0.3
+## 6.5.4 区段交界"混合出现"（开发者 2026-11-19：按现实情况）：交界线前后 Track.SECTION_TRANSITION 米内，
+## 两个区段各自的景物都放，保留概率 = 该区段的占比（交界线上各一半）。森林的树越靠近冰原越矮（林线），城市边缘以矮楼为主。
 const BASE_RECT := Rect2(-20.0, -16.0, 40.0, 30.0)   ## 基地外观占的平面范围（规格坐标 x, y）
 const BASE_NO_PLANT := 40.0        ## 5.10：基地外墙 40 m 之内不放植被
 ## 5.4：护栏、箭头牌离别的路不足护栏距离（Track.barrier_inner）不放
@@ -199,8 +199,9 @@ func _across(path: int, s: float) -> Transform3D:
 
 ## 沿 path 的 [s_from, s_to) 每 step 米、两侧各放一个：离中心线 d_min–d_max（随机），
 ## 离任何中心线不足 clear 的不放；pick(rng, pos, side, s) 返回 [键, 缩放] 或 []。
+## section ≥ 0 时按 Track.section_share 决定保留概率（区段交界的混合）。
 func _scatter(path: int, s_from: float, s_to: float, step: float, d_min: float, d_max: float,
-		clear: float, rng: RandomNumberGenerator, pick: Callable, both_sides := true) -> void:
+		clear: float, rng: RandomNumberGenerator, pick: Callable, both_sides := true, section := -1) -> void:
 	var s := s_from + step * 0.5
 	while s < s_to:
 		var xf := track.transform_at(path, s)
@@ -212,7 +213,7 @@ func _scatter(path: int, s_from: float, s_to: float, step: float, d_min: float, 
 			var keep_roll := rng.randf()
 			var pos := xf.origin + r * side * d
 			pos.y = 0.0
-			if path == Track.PATH_MAIN and _near_section_line(s) and keep_roll > SECTION_BLEND_KEEP:
+			if section >= 0 and keep_roll >= track.section_share(section, s):
 				continue
 			if _road_distance(_flat(pos)) < clear:
 				continue
@@ -224,11 +225,16 @@ func _scatter(path: int, s_from: float, s_to: float, step: float, d_min: float, 
 		s += step
 
 
-func _near_section_line(s: float) -> bool:
-	for i in range(1, track.section_names.size()):
-		if absf(s - track.section_start[i]) < SECTION_BLEND:
-			return true
-	return false
+## 区段 section 在主赛道上的散布范围：本区段加上两头伸进邻区段的过渡带。
+func _section_range(section: int) -> Array[float]:
+	var t := Track.SECTION_TRANSITION
+	var a: float = track.section_start[section]
+	var b: float = track.section_start[section + 1]
+	if section > 0:
+		a -= t
+	if section < track.section_names.size() - 1:
+		b += t
+	return [a, minf(b, track.length(Track.PATH_MAIN))]
 
 
 ## 一个区段（主赛道上）里最长的直道 [起点, 终点]。
@@ -324,7 +330,10 @@ func _pine_pick(scale_min: float, scale_max: float) -> Callable:
 	return func(rng: RandomNumberGenerator, pos: Vector3, _side: float, _s: float) -> Array:
 		if _near_base(pos):
 			return []
-		return ["pine:%d" % rng.randi_range(0, 1), rng.randf_range(scale_min, scale_max)]
+		# 林线：从冰原交界线前 SECTION_TRANSITION 米开始，越往冰原树越矮（最矮到 55%）
+		var line: float = track.section_start[1]
+		var f := clampf((_s - (line - Track.SECTION_TRANSITION)) / (2.0 * Track.SECTION_TRANSITION), 0.0, 1.0) if _s >= 0.0 else 0.0
+		return ["pine:%d" % rng.randi_range(0, 1), rng.randf_range(scale_min, scale_max) * lerpf(1.0, 0.55, f)]
 
 
 ## 出库路和环道：两侧 16–80 m，每侧每 12 m 一棵；环道围出的内场不种树。
@@ -348,16 +357,17 @@ func _place_forest_paths() -> void:
 func _place_forest() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 2001
-	var a := 0.0
-	var b := track.section_start[1]
+	var rg := _section_range(0)
+	var a := rg[0]
+	var b := rg[1]
 	var tunnel := _longest_straight(0)
 	var near := _pine_pick(0.8, 1.3)
-	_scatter(Track.PATH_MAIN, a, b, 8.0, 14.0, 60.0, 12.0, rng, near)
-	_scatter(Track.PATH_MAIN, a, b, 20.0, 60.0, 250.0, 12.0, rng, _pine_pick(1.5, 2.5))
+	_scatter(Track.PATH_MAIN, a, b, 8.0, 14.0, 60.0, 12.0, rng, near, true, 0)
+	_scatter(Track.PATH_MAIN, a, b, 20.0, 60.0, 250.0, 12.0, rng, _pine_pick(1.5, 2.5), true, 0)
 	# 长直道：两侧 12–20 m 每 6 m 一棵大树，形成两堵树墙
 	_scatter(Track.PATH_MAIN, tunnel[0], tunnel[1], 6.0, 12.0, 20.0, 12.0, rng, _pine_pick(1.5, 1.8))
 	var rock_pick := func(r: RandomNumberGenerator, _p: Vector3, _sd: float, _s: float) -> Array: return ["rock", r.randf_range(0.8, 1.6)]
-	_scatter(Track.PATH_MAIN, a, b, 60.0, 9.0, 14.0, 8.0, rng, rock_pick, false)
+	_scatter(Track.PATH_MAIN, a, b, 60.0, 9.0, 14.0, 8.0, rng, rock_pick, false, 0)
 	# 森林门 A-24 立在森林起点线上
 	_add("gate", _across(Track.PATH_MAIN, track.gate_s[0]))
 
@@ -368,11 +378,11 @@ func _place_ice() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 3001
 	var a := track.section_start[1]
-	var b := track.section_start[2]
+	var rg := _section_range(1)
 	var berg_pick := func(r: RandomNumberGenerator, _p: Vector3, _sd: float, _s: float) -> Array: return ["berg:%d" % r.randi_range(0, 1), r.randf_range(1.0, 3.0)]
 	var spike_pick := func(r: RandomNumberGenerator, _p: Vector3, _sd: float, _s: float) -> Array: return ["spikes", r.randf_range(0.8, 1.6)]
-	_scatter(Track.PATH_MAIN, a, b, 120.0, 80.0, 400.0, 60.0, rng, berg_pick)
-	_scatter(Track.PATH_MAIN, a, b, 12.0, 10.0, 40.0, 8.0, rng, spike_pick)
+	_scatter(Track.PATH_MAIN, rg[0], rg[1], 120.0, 80.0, 400.0, 60.0, rng, berg_pick, true, 1)
+	_scatter(Track.PATH_MAIN, rg[0], rg[1], 12.0, 10.0, 40.0, 8.0, rng, spike_pick, true, 1)
 	# 冰拱门：冰原起点线一座；长直道上从起点后 200 m 开始每 300 m 一座，共 5 座
 	_add("arch", _across(Track.PATH_MAIN, a))
 	var lake := _longest_straight(1)
@@ -419,13 +429,16 @@ func _place_city() -> void:
 		for side: float in [-1.0, 1.0]:
 			put_building.call(s, side, rng.randf_range(14.0, 18.0), 2)
 		s += 24.0
-	s = a + 14.0
+	s = _section_range(2)[0] + 14.0
 	while s < b:
 		if s < avenue[0] or s > avenue[1]:
+			var share := track.section_share(2, s)
 			for side: float in [-1.0, 1.0]:
-				if _near_section_line(s) and rng.randf() > SECTION_BLEND_KEEP:
+				if rng.randf() >= share:
 					continue
-				put_building.call(s, side, rng.randf_range(16.0, 30.0), rng.randi_range(0, 2))
+				# 城市边缘：占比不到 0.7 时只有矮楼
+				var variant := rng.randi_range(0, 2) if share >= 0.7 else 0
+				put_building.call(s, side, rng.randf_range(16.0, 30.0), variant)
 		s += 28.0
 	# 龙门架：城市起点线、终点线（朱红，带 FINISH 字样）、大道上每 300 m 一座共 3 座
 	_add("gantry:0", _across(Track.PATH_MAIN, a))
