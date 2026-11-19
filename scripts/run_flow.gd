@@ -112,6 +112,7 @@ func _ready() -> void:
 
 func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit: Cockpit) -> void:
 	_cockpit = p_cockpit
+	sync_medals()
 	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
 	for i in 3:
 		_cockpit.stickers.set_tier(i, int(medals[i]))
@@ -743,6 +744,23 @@ func _finish_run() -> void:
 	_update_hint()
 
 
+## 奖牌和最好成绩对齐（开发者 2026-11-19 第 1 轮 #9 发现）：门槛重新校准过，存档里的奖牌是按旧门槛评的，
+## 会出现"最好成绩已经够金牌、贴纸还是银牌"。启动时按现在的门槛重评最好成绩，只升不降。
+static func sync_medals() -> void:
+	var best: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
+	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
+	var changed := false
+	for i in mini(best.size(), medals.size()):
+		if float(best[i]) >= 0.0:
+			var tier := medal_for(i, float(best[i]))
+			if tier > int(medals[i]):
+				medals[i] = tier
+				changed = true
+	if changed:
+		SaveData.data["best_medals"] = medals
+		SaveData.save()
+
+
 ## T-53：用时 ≤ 金 / 银 / 铜门槛分别是 4 / 3 / 2，跑完但更慢是 1（塑料）。
 static func medal_for(index: int, seconds: float) -> int:
 	var t := Tuning.d
@@ -955,19 +973,30 @@ func _draw_menu(title: String, options: Array[String], selected: int, footer: St
 	_text_center(footer, 470.0, 12, COL_DIM)
 
 
+## 大本营的成绩行（开发者 2026-11-19 第 1 轮 #9：加上奖牌和下一枚奖牌的目标时间）。
 func _best_lines() -> Array:
 	var lines := []
 	var best_total := float(SaveData.data.get("best_total", -1.0))
 	if best_total >= 0.0:
-		lines.append("最好成绩  %s" % format_time(best_total))
-	var best_sections: Array = SaveData.data.get("best_sections", [])
-	if best_sections.size() == 3 and _track != null:
-		var parts := PackedStringArray()
-		for i in 3:
-			if float(best_sections[i]) >= 0.0:
-				parts.append("%s %s" % [Loc.t(_track.section_names[i]), format_time(float(best_sections[i]))])
-		if not parts.is_empty():
-			lines.append("区段最好  " + "    ".join(parts))
+		lines.append(Loc.t("最好成绩") + "  " + format_time(best_total))
+	var best_sections: Array = SaveData.data.get("best_sections", [-1.0, -1.0, -1.0])
+	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
+	if _track == null:
+		return lines
+	var t := Tuning.d
+	for i in 3:
+		var best := float(best_sections[i]) if i < best_sections.size() else -1.0
+		var tier := int(medals[i]) if i < medals.size() else 0
+		var line := Loc.t(_track.section_names[i]) + "  " + (format_time(best) if best >= 0.0 else Loc.t("—"))
+		if tier > 0:
+			line += "  " + Loc.t(StickerDisplay.TIER_NAMES[tier])
+		var th: PackedFloat32Array = [t.t53_forest_thresholds, t.t53_ice_thresholds, t.t53_city_thresholds][i]
+		if tier < 4:
+			var next := maxi(tier + 1, 2)            # 下一枚：铜(2) 银(3) 金(4)
+			line += "    " + Loc.t("下一枚") + " " + Loc.t(StickerDisplay.TIER_NAMES[next]) + " ≤ " + format_time(th[4 - next])
+		else:
+			line += "    " + Loc.t("已拿满")
+		lines.append(line)
 	return lines
 
 
