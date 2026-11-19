@@ -55,6 +55,9 @@ var section_times: Array[float] = [-1.0, -1.0, -1.0]   ## 本局各区段用时�
 var new_record := false
 var section_records: Array[bool] = [false, false, false]   ## 本局各区段是否刷新了历史最好
 var section_medals: Array[int] = [0, 0, 0]                  ## 本局各区段评到的贴纸等级
+## 本局统计（开发者 2026-11-19 第 2 轮 #2）：撞车 / 爆缸次数、最高车速（km/h）。完美过弯数在 CornerJudge.counts
+var run_crashes := 0
+var run_top_kmh := 0.0
 var _cockpit: Cockpit
 ## 右上角显示的最近 3 个区段成绩：{name, time, record}，新的在下面；跨局保留
 var recent: Array[Dictionary] = []
@@ -120,6 +123,9 @@ func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit
 	_car = p_car
 	_track = p_track
 	_hint = p_hint
+	_car.failed.connect(func(_k: int) -> void:
+		if state == State.RUN:
+			run_crashes += 1)
 
 
 # ───────────────────────── 键位设置（9.10） ─────────────────────────
@@ -525,7 +531,7 @@ func _draw_ending() -> void:
 	if _end_steps_done < 2:
 		return
 	var p := Vector2(60.0, 150.0)
-	_draw_panel(Rect2(p, Vector2(480.0, 250.0)))
+	_draw_panel(Rect2(p, Vector2(480.0, 286.0)))
 	draw_string(_font, Vector2(p.x + 20.0, 166.0 + 36.0), Loc.t("绕地球一圈，完成"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 36, COL_GOLD)
 	var y := 230.0
 	for i in section_times.size():
@@ -540,15 +546,19 @@ func _draw_ending() -> void:
 			if section_medals[i] > int(_start_medals[i]):
 				draw_string(_font, Vector2(x + 300.0, y + 22.0), Loc.t("新纪录"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_RED)
 		y += 36.0
+	# 本局统计
+	var c: Array = _main.corner_judge.counts
+	var stats := Loc.t("完美过弯") + " %d / %d    " % [c[0], c[2]] + Loc.t("撞车") + " %d    " % run_crashes 			+ Loc.t("最高") + " %d km/h" % roundi(run_top_kmh)
+	draw_string(_font, Vector2(p.x + 20.0, 356.0), stats, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14, COL_DIM)
 	if not section_times.has(-1.0):
-		draw_string(_font, Vector2(p.x + 20.0, 356.0), Loc.t("总用时"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, COL_TEXT)
-		draw_string(_font, Vector2(p.x + 100.0, 356.0), format_time(total_time()), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16,
+		draw_string(_font, Vector2(p.x + 20.0, 392.0), Loc.t("总用时"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16, COL_TEXT)
+		draw_string(_font, Vector2(p.x + 100.0, 392.0), format_time(total_time()), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 16,
 				COL_RECORD if new_record else COL_TEXT)
 		if not new_record:
-			draw_string(_font, Vector2(p.x + 220.0, 356.0), Loc.t("最好 ") + format_time(float(SaveData.data.get("best_total", -1.0))),
+			draw_string(_font, Vector2(p.x + 220.0, 392.0), Loc.t("最好 ") + format_time(float(SaveData.data.get("best_total", -1.0))),
 					HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 	if _blink < 0.5:
-		draw_string(_font, Vector2(p.x + 20.0, 370.0 + 12.0 + 6.0), Loc.t("回车 回大本营"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+		draw_string(_font, Vector2(p.x + 20.0, 422.0), Loc.t("回车 回大本营"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 
 
 ## 9.6 的贴纸文字面板：280×84。规格的位置 (590, 215) 会压住第三枚贴纸（贴纸的位置和规格示意图不同），往左挪到 (540, 215)。
@@ -640,6 +650,7 @@ func _leave_base() -> void:
 	_car.mode = CarSim.Mode.DRIVE
 	state = State.RUN if to_main else State.PRACTICE
 	_main.corner_judge.reset_counts()
+	_reset_run_stats()
 	if not to_main:
 		_main.tutorial.start()
 	_update_hint()
@@ -699,8 +710,14 @@ func restart_state() -> void:
 	_medal_panel_t = -1.0
 	_main.tutorial.stop()
 	_main.corner_judge.reset_counts()
+	_reset_run_stats()
 	state = State.RUN
 	_update_hint()
+
+
+func _reset_run_stats() -> void:
+	run_crashes = 0
+	run_top_kmh = 0.0
 
 
 ## 暂停菜单这一次显示哪些项（序号对应 PAUSE_OPTIONS）。
@@ -927,6 +944,8 @@ func _process(delta: float) -> void:
 	_blink = fposmod(_blink + delta, 1.0)
 	if not paused:
 		_update_caption(delta)
+		if state == State.RUN:
+			run_top_kmh = maxf(run_top_kmh, _car.v / CarSim.KMH)
 		if _banner_t >= 0.0:
 			_banner_t += delta
 			if _banner_t >= BANNER_TIME:
