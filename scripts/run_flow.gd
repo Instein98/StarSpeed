@@ -642,8 +642,11 @@ func _draw_medal_panel() -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_TEXT)
 	var line3 := Loc.t("最高等级")
 	if tier < 4:
+		# 第 3 轮 #7：直接说离下一枚还差几秒
 		var th: PackedFloat32Array = [Tuning.d.t53_forest_thresholds, Tuning.d.t53_ice_thresholds, Tuning.d.t53_city_thresholds][index]
-		line3 = Loc.t("金牌 %s 以内") % format_time(th[0])
+		var next := maxi(tier + 1, 2)
+		var gap := float(_medal_panel[2]) - th[4 - next]
+		line3 = Loc.t("离%s牌还差 %.2f 秒") % [Loc.t(StickerDisplay.TIER_NAMES[next]), gap]
 	draw_string(_font, Vector2(x, r.position.y + 58.0 + 11.0), line3, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
 	if bool(_medal_panel[3]):
 		var w := _font.get_string_size(line3, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12).x
@@ -840,6 +843,9 @@ func section_done(index: int, seconds: float) -> void:
 	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
 	var improved := tier > int(medals[index])
 	if improved:
+		if tier >= 4:
+			# 第 3 轮 #8：第一次拿金牌会解锁这个区段的夜景版环境，告诉玩家
+			notice(Loc.t("解锁夜景") + " · " + Loc.t(_track.section_names[index]), Loc.t("下次经过这个区段时是夜晚的样子"))
 		medals[index] = tier
 		SaveData.data["best_medals"] = medals
 		SaveData.save()
@@ -1233,6 +1239,13 @@ func _draw_celebrate() -> void:
 const TOAST_TIME := 3.2
 var _toast_id := ""
 var _toast_t := 0.0
+## 不是成就的提示（例如解锁夜景）：[标题, 说明]，和成就共用弹出卡片
+var _notices: Array = []
+var _toast_text: Array = []
+
+
+func notice(title: String, desc: String) -> void:
+	_notices.append([title, desc])
 
 
 func _update_toast(delta: float) -> void:
@@ -1240,8 +1253,16 @@ func _update_toast(delta: float) -> void:
 		_toast_t += delta
 		if _toast_t >= TOAST_TIME:
 			_toast_id = ""
-	if _toast_id == "" and not Achievements.pending.is_empty() and state != State.ENDING:
-		_toast_id = Achievements.pending.pop_front()
+	if _toast_id == "" and state != State.ENDING:
+		if not Achievements.pending.is_empty():
+			_toast_id = Achievements.pending.pop_front()
+			var a := Achievements.info(_toast_id)
+			_toast_text = [Loc.t("成就解锁") + " · " + Loc.t(str(a[1])), Loc.t(str(a[2]))]
+		elif not _notices.is_empty():
+			_toast_id = "notice"
+			_toast_text = _notices.pop_front()
+		else:
+			return
 		_toast_t = 0.0
 		_main.sfx.play("sticker", -3.0)
 
@@ -1250,15 +1271,14 @@ func _update_toast(delta: float) -> void:
 func _draw_achievement_toast() -> void:
 	if _toast_id == "":
 		return
-	var a := Achievements.info(_toast_id)
 	var drop := clampf(_toast_t / 0.25, 0.0, 1.0)
 	var alpha := clampf((TOAST_TIME - _toast_t) / 0.4, 0.0, 1.0)
 	var r := Rect2(Vector2(300.0, lerpf(-70.0, 14.0, 1.0 - pow(1.0 - drop, 3.0))), Vector2(360.0, 58.0))
 	draw_rect(r, Color(COL_GOLD, alpha))
 	draw_rect(r.grow(-3.0), Color(COL_DARKER, alpha))
-	draw_string(_font, Vector2(r.position.x, r.position.y + 25.0), Loc.t("成就解锁") + " · " + Loc.t(str(a[1])),
+	draw_string(_font, Vector2(r.position.x, r.position.y + 25.0), str(_toast_text[0]),
 			HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 18, Color(COL_GOLD, alpha))
-	draw_string(_font, Vector2(r.position.x, r.position.y + 46.0), Loc.t(str(a[2])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(COL_TEXT, alpha))
+	draw_string(_font, Vector2(r.position.x, r.position.y + 46.0), str(_toast_text[1]), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(COL_TEXT, alpha))
 
 
 ## 大本营信息区第 4 页：成就，四个一行。

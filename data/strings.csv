@@ -180,3 +180,6 @@ R 再跑一次,R 再跑一次,R  Run it again
 本圈,本圈,Lap
 上一圈,上一圈,Last
 最快圈,最快圈,Best lap
+离%s牌还差 %.2f 秒,离%s牌还差 %.2f 秒,%s needs %.2f s more
+解锁夜景,解锁夜景,Night unlocked
+下次经过这个区段时是夜晚的样子,下次经过这个区段时是夜晚的样子,This section now runs at night
