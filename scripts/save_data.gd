@@ -34,6 +34,7 @@ var data: Dictionary = {
 	"auto_shift": false,
 	"speedo": false,        # 车速数字（第 2 轮 #6）
 	"fx_level": 0,          # 画面效果强度（第 2 轮 #7）：0 完整、1 减弱、2 最弱
+	"achievements": [],     # 已解锁的成就 id（第 3 轮 #3）
 	# 累计统计（第 2 轮 #10）
 	"stats": {"km": 0.0, "runs": 0, "finished": 0, "perfect": 0, "crashes": 0, "play_s": 0.0, "top_kmh": 0.0},
 }
@@ -192,6 +193,13 @@ func _load() -> void:
 			var v: Variant = (st as Dictionary).get(key)
 			if v is float or v is int:
 				data["stats"][key] = float(v)
+	var ach: Variant = (parsed as Dictionary).get("achievements")
+	if ach is Array:
+		var ids := []
+		for a: Variant in ach:
+			if a is String:
+				ids.append(a)
+		data["achievements"] = ids
 	var top: Variant = (parsed as Dictionary).get("top_runs")
 	if top is Array:
 		var runs := []

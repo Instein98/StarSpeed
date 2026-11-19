@@ -63,7 +63,7 @@ var run_crashes := 0
 var single_section := -1
 ## 大本营下方信息的页（← → 切换）：0 奖牌、1 本地排行、2 累计统计
 var _base_page := 0
-const BASE_PAGES := 3
+const BASE_PAGES := 4
 const TOP_RUNS := 5
 ## 本局在本地排行里的名次（1 起），没进前 5 为 0
 var run_rank := 0
@@ -126,6 +126,7 @@ func _ready() -> void:
 func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit: Cockpit) -> void:
 	_cockpit = p_cockpit
 	sync_medals()
+	Achievements.backfill()
 	var medals: Array = SaveData.data.get("best_medals", [0, 0, 0])
 	for i in 3:
 		_cockpit.stickers.set_tier(i, int(medals[i]))
@@ -835,6 +836,10 @@ func section_done(index: int, seconds: float) -> void:
 		medals[index] = tier
 		SaveData.data["best_medals"] = medals
 		SaveData.save()
+	if tier >= 4:
+		Achievements.unlock("gold")
+	if int(medals[0]) >= 4 and int(medals[1]) >= 4 and int(medals[2]) >= 4:
+		Achievements.unlock("all_gold")
 	if index < section_times.size() - 1:
 		# 9.6：森林、冰原的贴纸在越过终点线时出现，不暂停驾驶；城市的贴纸在结尾画面里贴（6.7）
 		_main.sfx.play("sticker")
@@ -889,6 +894,14 @@ func _finish_run() -> void:
 			SaveData.data["best_total"] = total
 			new_record = true
 		run_rank = _add_top_run(total)
+		Achievements.unlock("finish")
+		if run_crashes == 0:
+			Achievements.unlock("clean")
+		if total < 240.0:
+			Achievements.unlock("sub4")
+		var c: Array = _main.corner_judge.counts
+		if int(c[2]) > 0 and int(c[0]) == int(c[2]):
+			Achievements.unlock("perfect_all")
 	SaveData.save()
 	_update_hint()
 
@@ -1089,9 +1102,18 @@ func _process(delta: float) -> void:
 		if state == State.RUN:
 			run_top_kmh = maxf(run_top_kmh, _car.v / CarSim.KMH)
 		if state in [State.RUN, State.PRACTICE]:
+			if _car.v / CarSim.KMH >= Tuning.d.top_speed_kmh - 0.5:
+				Achievements.unlock("top")
+			if state == State.RUN and int(_main.corner_judge.counts[0]) >= 10:
+				Achievements.unlock("perfect10")
+			if float(SaveData.data["stats"].get("km", 0.0)) >= 100.0:
+				Achievements.unlock("km100")
+			if bool(SaveData.data.get("tutorial_done", false)):
+				Achievements.unlock("tutorial")
 			SaveData.stat_add("km", _car.v * delta / 1000.0)
 			SaveData.stat_add("play_s", delta)
 			SaveData.stat_max("top_kmh", _car.v / CarSim.KMH)
+		_update_toast(delta)
 		if _banner_t >= 0.0:
 			_banner_t += delta
 			if _banner_t >= BANNER_TIME:
@@ -1148,8 +1170,8 @@ func _draw_frame() -> void:
 			foot += Loc.t("    R 重新开始")
 		_draw_menu("暂停", opts, _pause_select, foot, [])
 	elif state == State.BASE:
-		var pages := [_best_lines(), _top_lines(), _stats_lines()]
-		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计"), pages[_base_page])
+		var pages := [_best_lines(), _top_lines(), _stats_lines(), _achievement_lines()]
+		_draw_menu("大本营", BASE_OPTIONS, _select, Loc.t("↑ ↓ 选择    回车 出发    ← → 奖牌 / 排行 / 统计 / 成就"), pages[_base_page])
 	elif state == State.RESULTS:
 		_draw_results()
 	if not paused and state != State.BASE:
@@ -1157,9 +1179,56 @@ func _draw_frame() -> void:
 	if _medal_panel_t >= 0.3 and state == State.RUN:
 		_draw_medal_panel()
 	_draw_rail_glow()
+	_draw_achievement_toast()
 	_draw_corner_popup()
 	_draw_banner()
 	_draw_speedo()
+
+
+# ───────────────────────── 成就提示（第 3 轮 #3） ─────────────────────────
+
+const TOAST_TIME := 3.2
+var _toast_id := ""
+var _toast_t := 0.0
+
+
+func _update_toast(delta: float) -> void:
+	if _toast_id != "":
+		_toast_t += delta
+		if _toast_t >= TOAST_TIME:
+			_toast_id = ""
+	if _toast_id == "" and not Achievements.pending.is_empty() and state != State.ENDING:
+		_toast_id = Achievements.pending.pop_front()
+		_toast_t = 0.0
+		_main.sfx.play("sticker", -3.0)
+
+
+## 屏幕上方正中从上面滑下来："成就解锁 · 名字"，下面一行说明。
+func _draw_achievement_toast() -> void:
+	if _toast_id == "":
+		return
+	var a := Achievements.info(_toast_id)
+	var drop := clampf(_toast_t / 0.25, 0.0, 1.0)
+	var alpha := clampf((TOAST_TIME - _toast_t) / 0.4, 0.0, 1.0)
+	var r := Rect2(Vector2(300.0, lerpf(-70.0, 14.0, 1.0 - pow(1.0 - drop, 3.0))), Vector2(360.0, 58.0))
+	draw_rect(r, Color(COL_GOLD, alpha))
+	draw_rect(r.grow(-3.0), Color(COL_DARKER, alpha))
+	draw_string(_font, Vector2(r.position.x, r.position.y + 25.0), Loc.t("成就解锁") + " · " + Loc.t(str(a[1])),
+			HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 18, Color(COL_GOLD, alpha))
+	draw_string(_font, Vector2(r.position.x, r.position.y + 46.0), Loc.t(str(a[2])), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 12, Color(COL_TEXT, alpha))
+
+
+## 大本营信息区第 4 页：成就，四个一行。
+func _achievement_lines() -> Array:
+	var lines := [Loc.t("成就") + " %d / %d" % [Achievements.count(), Achievements.LIST.size()]]
+	for i in range(0, Achievements.LIST.size(), 4):
+		var parts := PackedStringArray()
+		for j in range(i, i + 4):
+			if j < Achievements.LIST.size():
+				var a: Array = Achievements.LIST[j]
+				parts.append(("★ " if Achievements.has(a[0]) else "☆ ") + Loc.t(str(a[1])))
+		lines.append("    ".join(parts))
+	return lines
 
 
 ## 擦护栏预警的屏幕边缘红光（第 3 轮 #2）：在滑出去的那一侧，从边缘向内渐隐，按 8 Hz 闪。
