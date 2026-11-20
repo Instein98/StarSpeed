@@ -433,7 +433,7 @@ func title_buttons() -> Array:
 	if bool(SaveData.data.get("intro_seen", false)):
 		list.append([Loc.t("重看开场"), true, "intro"])
 	list.append([Loc.t("制作人员"), true, "credits"])
-	list.append([Loc.t("退出"), true, "quit"])
+	list.append([_quit_label(Loc.t("退出")), true, "quit"])
 	return list
 
 
@@ -530,8 +530,7 @@ func _title_choose() -> void:
 		"lang":
 			Loc.toggle()
 		"quit":
-			SaveData.save()
-			get_tree().quit()
+			_confirm_quit()
 
 
 func _title_move(step: int) -> void:
@@ -1230,6 +1229,23 @@ func _take_screenshot() -> void:
 		notice(Loc.t("截图失败"), path)
 
 
+## 退出确认（第 4 轮 #9）：第一次选"退出"只把按钮变成"再按一次退出"，2.5 秒内再按才退出。
+var _quit_armed_t := -1.0
+
+
+func _confirm_quit() -> void:
+	if _quit_armed_t >= 0.0:
+		SaveData.save()
+		get_tree().quit()
+		return
+	_quit_armed_t = 0.0
+	_main.sfx.play("ui_move")
+
+
+func _quit_label(normal: String) -> String:
+	return Loc.t("再按一次退出") if _quit_armed_t >= 0.0 else normal
+
+
 func _set_paused(on: bool) -> void:
 	paused = on
 	_pause_select = 0
@@ -1254,14 +1270,17 @@ func _pause_choose() -> void:
 			_set_paused(false)
 			_main.call("return_to_title")
 		"退出游戏":
-			SaveData.save()
-			get_tree().quit()
+			_confirm_quit()
 
 
 # ───────────────────────── 界面 ─────────────────────────
 
 func _process(delta: float) -> void:
 	_blink = fposmod(_blink + delta, 1.0)
+	if _quit_armed_t >= 0.0:
+		_quit_armed_t += delta
+		if _quit_armed_t > 2.5:
+			_quit_armed_t = -1.0
 	if not paused:
 		_update_caption(delta)
 		if state == State.RUN:
@@ -1336,7 +1355,7 @@ func _draw_frame() -> void:
 	if paused:
 		var opts: Array[String] = []
 		for i in _pause_items():
-			opts.append(PAUSE_OPTIONS[i])
+			opts.append(_quit_label(PAUSE_OPTIONS[i]) if PAUSE_OPTIONS[i] == "退出游戏" else PAUSE_OPTIONS[i])
 		var foot := Loc.t("↑ ↓ 选择    回车 确定    Esc 继续")
 		if state == State.RUN:
 			foot += Loc.t("    R 重新开始")

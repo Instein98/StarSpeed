@@ -125,6 +125,11 @@ func _ready() -> void:
 	music_lamps.music = music
 	music_lamps.visible = false
 	$UI/UIRoot.add_child(music_lamps)
+	var mix_panel := MixPanel.new()
+	mix_panel.name = "MixPanel"
+	mix_panel.engine = engine_audio
+	mix_panel.tires = tire_audio
+	$UI/UIRoot.add_child(mix_panel)
 	sfx = Sfx.new()
 	sfx.name = "Sfx"
 	sfx.process_mode = Node.PROCESS_MODE_ALWAYS
