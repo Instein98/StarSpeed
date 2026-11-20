@@ -19,6 +19,11 @@ var track: Track
 var save_path := PATH
 ## 最好那趟的曲线：每个区段一个 PackedFloat32Array（第 k 项 = 到达 区段起点 + k×STEP 时的已用时间）
 var best: Array = [PackedFloat32Array(), PackedFloat32Array(), PackedFloat32Array()]
+## 练习环道最快圈的曲线（第 4 轮 #6）：第 k 项 = 这一圈到达环道 k×STEP 米时的圈时
+var best_lap := PackedFloat32Array()
+var _cur_lap := PackedFloat32Array()
+## 幽灵在哪条路上（主赛道或环道）
+var ghost_path := Track.PATH_MAIN
 ## 实时差值（秒）；没有可比的记录时为 NAN
 var delta := NAN
 ## 幽灵在主赛道上的里程；不显示时为 −1
@@ -70,12 +75,42 @@ func _process(_delta: float) -> void:
 		if b.size() >= 2:
 			delta = t - _time_at(b, x)
 			ghost_s = track.gate_s[sec] + _dist_at(b, t)
-	var show := ghost_s >= 0.0 and bool(SaveData.data.get("ghost_on", true)) and ghost_s > car.s + 2.0
+	ghost_path = Track.PATH_MAIN
+	_practice_lap()
+	var show := ghost_s >= 0.0 and bool(SaveData.data.get("ghost_on", true)) and ghost_s > car.s + 2.0 and car.path_id == ghost_path
 	_body.visible = show
 	if show:
-		var xf := track.transform_at(Track.PATH_MAIN, ghost_s)
+		var xf := track.transform_at(ghost_path, ghost_s)
 		xf.origin += xf.basis.y * LIFT
 		_body.global_transform = xf
+
+
+## 练习环道：圈速计时中（RunFlow._lap_t ≥ 0）时记录这一圈，并显示最快圈的幽灵。
+func _practice_lap() -> void:
+	var flow: RunFlow = main.flow
+	if flow.state != RunFlow.State.PRACTICE or car.path_id != Track.PATH_LOOP or flow._lap_t < 0.0:
+		_cur_lap = PackedFloat32Array()
+		return
+	var t := flow._lap_t
+	if t < 0.05 and _cur_lap.size() > 2:
+		_cur_lap = PackedFloat32Array()      # 新的一圈
+	while car.s >= _cur_lap.size() * STEP:
+		_cur_lap.append(t)
+	if best_lap.size() >= 2:
+		delta = t - _time_at(best_lap, car.s)
+		ghost_s = _dist_at(best_lap, t)
+		ghost_path = Track.PATH_LOOP
+
+
+## 一圈跑完（RunFlow._update_lap 调用，在清零圈时之前）：刷新最快圈或还没有记录时存这条曲线。
+func lap_finished(record: bool) -> void:
+	var need := int(track.length(Track.PATH_LOOP) / STEP) - 1
+	if _cur_lap.size() < need:
+		return
+	if record or best_lap.size() < 2:
+		best_lap = _cur_lap.duplicate()
+		_save()
+	_cur_lap = PackedFloat32Array()
 
 
 ## 区段跑完（main 在 flow.section_done 之后调用）：刷新了最好成绩或者还没有记录时存这条曲线。
@@ -123,6 +158,8 @@ func _load() -> void:
 	var secs: Array = data["sections"]
 	for i in mini(secs.size(), 3):
 		best[i] = PackedFloat32Array(secs[i] as Array)
+	if data.has("lap") and data["lap"] is Array:
+		best_lap = PackedFloat32Array(data["lap"] as Array)
 
 
 func _save() -> void:
@@ -132,9 +169,12 @@ func _save() -> void:
 		for v in b:
 			arr.append(snappedf(v, 0.001))
 		secs.append(arr)
+	var lap := []
+	for v in best_lap:
+		lap.append(snappedf(v, 0.001))
 	var f := FileAccess.open(save_path, FileAccess.WRITE)
 	if f != null:
-		f.store_string(JSON.stringify({"version": 1, "step": STEP, "sections": secs}))
+		f.store_string(JSON.stringify({"version": 1, "step": STEP, "sections": secs, "lap": lap}))
 
 
 ## 半透明的车形：车身 2 × 4.4 m、高 0.7 m，上面一个座舱。原点在车的中心，朝 −Z。

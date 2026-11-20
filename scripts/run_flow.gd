@@ -1342,6 +1342,7 @@ func _update_lap(delta: float) -> void:
 			_last_lap = _lap_t
 			var best := float(SaveData.data.get("best_lap", -1.0))
 			_lap_record = best < 0.0 or _lap_t < best
+			_main.ghost.lap_finished(_lap_record)
 			if _lap_record:
 				SaveData.data["best_lap"] = _lap_t
 				SaveData.save()
@@ -1364,6 +1365,10 @@ func _draw_laps() -> void:
 		_text_right(str(r[0]), right - 96.0, y, 14, COL_DIM)
 		_text_right(format_time(float(r[1])) if float(r[1]) >= 0.0 else Loc.t("—"), right, y, 16, r[2])
 		y += 22.0
+	var live: float = _main.ghost.delta
+	if _lap_t >= 0.0 and not is_nan(live):
+		_text_right(Loc.t("比最快圈"), right - 96.0, y + 6.0, 13, COL_DIM)
+		_text_right(format_delta(live), right, y + 8.0, 20, COL_FASTER if live < 0.0 else COL_SLOWER)
 
 
 ## 擦护栏预警的屏幕边缘红光（第 3 轮 #2）：在滑出去的那一侧，从边缘向内渐隐，按 8 Hz 闪。
