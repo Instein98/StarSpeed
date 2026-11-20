@@ -11,7 +11,7 @@ const REBINDABLE: Array[String] = ["throttle", "brake", "shift_up", "shift_down"
 ## 不能绑定的键（4.1）：Esc、回车、F1 – F5
 const FORBIDDEN: Array[int] = [KEY_ESCAPE, KEY_ENTER, KEY_KP_ENTER, KEY_F1, KEY_F2, KEY_F3, KEY_F4, KEY_F5, KEY_F6, KEY_F12, KEY_R]
 ## 存档里的开关：开场看过、教学完成、降档提示出现过、降档提示灯辅助（R-06a）
-const FLAGS: Array[String] = ["intro_seen", "tutorial_done", "tip_downshift_shown", "assist_downshift_lamp"]
+const FLAGS: Array[String] = ["intro_seen", "tutorial_done", "tip_downshift_shown", "assist_downshift_lamp", "tip_restart_shown", "tip_assist_shown"]
 
 ## keys 存物理键码；默认值就是 project.godot 里 Input Map 的默认键。
 var data: Dictionary = {
@@ -24,6 +24,8 @@ var data: Dictionary = {
 	"tutorial_done": false,
 	"tip_downshift_shown": false,
 	"assist_downshift_lamp": false,
+	"tip_restart_shown": false,   # 第 5 轮 #2：第一次在计时赛里撞车时提示 R 键
+	"tip_assist_shown": false,    # 第 5 轮 #2：第一次进大本营时提示设置里的辅助
 	"lang": "zh",
 	# 设置（开发者 2026-11-19 第 1 轮 #4）：音量 0–10，全屏，幽灵
 	"vol_master": 8,

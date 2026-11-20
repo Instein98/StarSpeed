@@ -143,7 +143,8 @@ func setup(p_main: Node, p_car: CarSim, p_track: Track, p_hint: Label, p_cockpit
 		if state in [State.RUN, State.PRACTICE]:
 			SaveData.stat_add("crashes", 1)
 		if state == State.RUN:
-			run_crashes += 1)
+			run_crashes += 1
+			_one_time_tip("tip_restart_shown", Loc.t("撞了没关系。想从头再来，按 [R] 直接回到起点。"), 5.0))
 
 
 # ───────────────────────── 键位设置（9.10） ─────────────────────────
@@ -702,6 +703,7 @@ func enter_base() -> void:
 	if state in [State.RUN, State.PRACTICE, State.RESULTS, State.ENDING]:
 		SaveData.save()          # 累计统计在回大本营时落盘
 	state = State.BASE
+	_one_time_tip("tip_assist_shown", Loc.t("开不惯的话，暂停菜单的设置里有自动挡和刹车提示。"), 6.0)
 	_select = 0
 	section_times = [-1.0, -1.0, -1.0]
 	section_records = [false, false, false]
@@ -816,6 +818,15 @@ func _pause_lines() -> Array:
 	if parts.is_empty():
 		return []
 	return [Loc.t("本趟") + "  " + "    ".join(parts)]
+
+
+## 只出现一次的 CEO 提示（第 5 轮 #2）：存档开关 flag 为假时显示并置真。
+func _one_time_tip(flag: String, text: String, seconds: float) -> void:
+	if bool(SaveData.data.get(flag, false)):
+		return
+	SaveData.data[flag] = true
+	SaveData.save()
+	show_caption("CEO", text, seconds)
 
 
 ## 暂停菜单这一次显示哪些项（序号对应 PAUSE_OPTIONS）。
