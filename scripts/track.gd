@@ -46,6 +46,11 @@ const COL_ROAD_DARK := Color("363d4b")
 const COL_EDGE := Color("ffc93c")
 const COL_CENTER := Color("f7ecd4")
 const COL_PARAPET := Color("8a93a3")
+## 弯道路肩（kerb，开发者 2026-11-19 第 4 轮 #5）：弯道两侧路边外 0.9 m 宽、红白相间每 3 m 换色
+const COL_KERB_RED := Color("ef4a2f")
+const COL_KERB_WHITE := Color("f7ecd4")
+const KERB_WIDTH := 0.9
+const KERB_PERIOD := 3
 ## 各区段白天版地面色（6.5）；阶段 2 之后由环境配置接管。
 const COL_GROUND: Array[Color] = [Color("58b97a"), Color("f4fbff"), Color("3a4150")]
 const COL_LAKE := Color("a5dcf2")
@@ -534,6 +539,13 @@ func _build_road(path_id: int, v: PackedVector3Array, c: PackedColorArray) -> vo
 			if i % DASH_PERIOD < DASH_LENGTH:
 				_quad(v, c, a - ra * CENTER_LINE_HALF + up_line, a + ra * CENTER_LINE_HALF + up_line,
 						b - rb * CENTER_LINE_HALF + up_line, b + rb * CENTER_LINE_HALF + up_line, COL_CENTER)
+
+		# 弯道路肩：主赛道和环道的圆弧段，两侧路边外各一条红白相间的路肩（路口重叠处不画，和车道线一样）
+		if path_id != PATH_ACCESS and pt.seg_kappa[seg] != 0.0 and draw_lines:
+			var kc := COL_KERB_RED if (i / KERB_PERIOD) % 2 == 0 else COL_KERB_WHITE
+			for side: float in [-1.0, 1.0]:
+				_quad(v, c, a + ra * side * ha + up_line, a + ra * side * (ha + KERB_WIDTH) + up_line,
+						b + rb * side * hb + up_line, b + rb * side * (hb + KERB_WIDTH) + up_line, kc)
 
 		# 路面抬高处：路边到护栏之间是同高的路肩（深色），护栏外面森林、冰原是 45° 路基；城市的高架护墙就立在护栏的位置（5.4）。
 		if path_id == PATH_MAIN and (a.y > 0.02 or b.y > 0.02):
