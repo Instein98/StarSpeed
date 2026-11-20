@@ -145,3 +145,6 @@ extends Resource
 @export_group("刹车提示辅助（开发者 2026-11-19）")
 @export var brake_cue_lookahead_s: float                 ## 看多少秒以后的位置
 @export var brake_cue_margin_kmh: float                  ## 现在比那里的理想车速快这么多才提示
+
+@export_group("撞击震动（开发者 2026-11-19）")
+@export var crash_shake_mm: float                        ## 撞护栏 / 爆炸一瞬间的震动幅度

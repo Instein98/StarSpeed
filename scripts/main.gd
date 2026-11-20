@@ -421,6 +421,7 @@ func _on_car_failed(kind: int) -> void:
 		# 失败 1：车已经滑到路边的护栏上了，立刻撞击、爆炸（滑出去的过程发生在失败之前）
 		car.mode = CarSim.Mode.LOCKED
 		_fail_pre_time = 0.0
+		camera_rig.impact(1.0)          # 撞上护栏的一下
 	else:
 		# 失败 2 / 3：指针打到尽头卡住，换挡提示灯常亮，座舱闪一帧朱红，爆响；车还在赛道上
 		car.mode = CarSim.Mode.COASTING
@@ -445,6 +446,7 @@ func _update_fail_sequence(delta: float) -> void:
 		car.mode = CarSim.Mode.LOCKED
 		_white_frames = WHITE_FRAMES
 		explosion.play()
+		camera_rig.impact(0.8)          # 爆炸
 		if _fail_kind == CarSim.Fail.OFF_TRACK:
 			_play_sfx("crash")
 		elif _fail_kind == CarSim.Fail.DOWNSHIFT:

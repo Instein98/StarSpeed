@@ -52,6 +52,10 @@ var _roll_to := 0.0
 var _shake_phase := 0.0
 var _rng := RandomNumberGenerator.new()
 var _tangent := Vector3.FORWARD
+## 撞击震动（0–1，impact() 设置后在 IMPACT_TIME 秒内衰减到 0）
+var _impact := 0.0
+const IMPACT_TIME := 0.45
+const IMPACT_ROLL_DEG := 4.0
 var _flying := false
 var _fly_pos := Vector3.ZERO
 var _fly_basis := Basis.IDENTITY
@@ -81,6 +85,10 @@ func _on_shift_started(is_up: bool, _from: int, _to: int) -> void:
 
 
 ## 失败 1：从此刻的镜头位置沿赛道切线飞出去。
+func impact(strength := 1.0) -> void:
+	_impact = maxf(_impact, clampf(strength, 0.0, 1.0))
+
+
 func start_flyoff() -> void:
 	_flying = true
 	_fly_pos = world_camera.global_position
@@ -201,6 +209,13 @@ func _process(delta: float) -> void:
 	if warn > 0.0:
 		amp = maxf(amp, t.rail_warn_shake_mm * warn * SaveData.fx_scale())
 		world_amp = maxf(world_amp, t.rail_warn_shake_mm * 0.5 * warn * SaveData.fx_scale())
+	# 撞击（第 5 轮 #4）：撞护栏、爆炸的一瞬间猛震一下再很快衰减，带一点侧倾抖动
+	_impact = move_toward(_impact, 0.0, delta / IMPACT_TIME)
+	if _impact > 0.0:
+		var k := _impact * _impact * SaveData.fx_scale()
+		amp = maxf(amp, t.crash_shake_mm * k)
+		world_amp = maxf(world_amp, t.crash_shake_mm * k)
+		roll_jitter_amp = maxf(roll_jitter_amp, IMPACT_ROLL_DEG * k)
 	shake_mm = amp
 	_shake_phase += delta * t.t37_freq_hz
 	while _shake_phase >= 1.0:
