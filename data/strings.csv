@@ -24,7 +24,7 @@ key,zh,en
 想慢下来：按 %s 刹车。也可以松开油门、按 %s 降档，让引擎把车拖住。,想慢下来：按 %s 刹车。也可以松开油门、按 %s 降档，让引擎把车拖住。,"To slow down, press %s to brake. Or lift off and press %s to downshift."
 过弯听轮胎。,过弯听轮胎。,Listen to the tires in the corners.
 现在故意开快一点进弯。车往外滑的时候，松油门、刹车或者降档，把它救回来。,现在故意开快一点进弯。车往外滑的时候，松油门、刹车或者降档，把它救回来。,"Now take a corner too fast on purpose. When it slides wide, lift, brake or downshift to save it."
-可以了。按 [回车] 回大本营，选「主赛道 计时赛」。绕地球一圈，回来见。,可以了。按 [回车] 回大本营，选「主赛道 计时赛」。绕地球一圈，回来见。,"That'll do. Press [Enter] to return to base and pick Main Track: Time Trial. Once around the Earth. See you back here."
+可以了。按 [回车] 回大本营，选「主赛道 计时赛」。绕地球一圈，回来见。,可以了。按 [回车] 回大本营，选「主赛道 计时赛」。绕地球一圈，回来见。,That'll do. Press [Enter] to return to base and pick Main Track: Time Trial. Once around the Earth. See you back here.
 顶到头了！升档，或者松油门。再顶下去引擎会炸。,顶到头了！升档，或者松油门。再顶下去引擎会炸。,"You're on the limiter! Shift up or lift off, or the engine will blow."
 降档别太急。转速冲过表盘尽头，引擎当场报废。等指针落下来，再降下一档。,降档别太急。转速冲过表盘尽头，引擎当场报废。等指针落下来，再降下一档。,Don't downshift too fast. Rev past the end of the dial and the engine is gone. Wait for the needle to drop.
 升早了，动力发肉。等指针再往上走。,升早了，动力发肉。等指针再往上走。,Too early. No power down there. Let the needle climb higher.
@@ -133,13 +133,13 @@ R 再跑一次,R 再跑一次,R  Run it again
 操作,操作,Controls
 油门 %s   刹车 %s   升档 %s   降档 %s   重开 [R]   暂停 [Esc],油门 %s   刹车 %s   升档 %s   降档 %s   重开 [R]   暂停 [Esc],Throttle %s   Brake %s   Shift up %s   Shift down %s   Restart [R]   Pause [Esc]
 指针进红区前升档。顶着断油太久，引擎会爆。,指针进红区前升档。顶着断油太久，引擎会爆。,Shift up before the needle hits red. Sitting on the limiter too long blows the engine.
-降档后转速冲过表盘尽头会爆缸：等指针落下来再降。,降档后转速冲过表盘尽头会爆缸：等指针落下来再降。,A downshift that sends the needle past the end of the dial blows the engine: wait for it to drop.
+降档后转速冲过表盘尽头会爆缸：等指针落下来再降。,降档后转速冲过表盘尽头会爆缸：等指针落下来再降。,Downshift too early and the needle runs off the dial: the engine blows. Wait for it to drop.
 过弯,过弯,Corners
-进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。,进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。,"Slow below the corner's limit before turning in. The sharper the tyres squeal, the closer to the limit."
+进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。,进弯前把车速降到弯道极限以下。轮胎越叫越尖 = 越接近极限。,Slow below the corner's limit before turning in. Sharper squeal = closer to the limit.
 打滑,打滑,Sliding
-太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。,太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。,"Too fast and you slide wide: lift, brake or downshift to save it. Reach the rail and you crash."
+太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。,太快会往弯外滑：松油门、刹车或降档把车救回来；滑到护栏就撞车。,"Too fast and you slide wide: lift, brake or downshift to save it. Hit the rail and you crash."
 奖励,奖励,Rewards
-"贴着极限过弯有""完美过弯""；跑得越接近理想车速，音乐越完整。","贴着极限过弯有""完美过弯""；跑得越接近理想车速，音乐越完整。","Corner right at the limit for PERFECT CORNER. The closer to ideal pace, the fuller the music."
+"贴着极限过弯有""完美过弯""；跑得越接近理想车速，音乐越完整。","贴着极限过弯有""完美过弯""；跑得越接近理想车速，音乐越完整。",Corner at the limit for PERFECT CORNER. Closer to ideal pace = fuller music.
 对手,对手,Rival
 青色的半透明车是你最好那趟的幽灵；右上角是和最好成绩的差值。,青色的半透明车是你最好那趟的幽灵；右上角是和最好成绩的差值。,The translucent cyan car is the ghost of your best run; top right shows your delta to it.
 车速数字,车速数字,Speedometer

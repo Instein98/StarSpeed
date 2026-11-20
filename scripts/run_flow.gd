@@ -251,10 +251,16 @@ func _draw_help() -> void:
 		[Loc.t("奖励"), Loc.t("贴着极限过弯有\"完美过弯\"；跑得越接近理想车速，音乐越完整。")],
 		[Loc.t("对手"), Loc.t("青色的半透明车是你最好那趟的幽灵；右上角是和最好成绩的差值。")],
 	]
+	# 标签列按最宽的标签排；英文句子长，字号小一号（第 5 轮 #5 英文检查时发现被截断）
+	var size := 15 if Loc.lang() == "zh" else 13
+	var label_w := 0.0
+	for row: Array in lines:
+		label_w = maxf(label_w, _font.get_string_size(str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 15).x)
+	var text_x := 120.0 + label_w + 14.0
 	var y := 150.0
 	for row: Array in lines:
 		draw_string(_font, Vector2(120.0, y + 16.0), str(row[0]), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 15, COL_GOLD)
-		draw_string(_font, Vector2(190.0, y + 16.0), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, 650.0, 15, COL_TEXT)
+		draw_string(_font, Vector2(text_x, y + 16.0), str(row[1]), HORIZONTAL_ALIGNMENT_LEFT, 860.0 - text_x, size, COL_TEXT)
 		y += 38.0
 	_text_center(Loc.t("回车 / Esc 返回"), 492.0, 12, COL_DIM)
 
