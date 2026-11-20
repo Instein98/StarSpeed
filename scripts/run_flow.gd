@@ -28,8 +28,8 @@ const BASE_PRACTICE := 4
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
-const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "speedo", "fx_level", "lang", "clear"]
-const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "车速数字", "画面效果", "语言", "清除成绩"]
+const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "brake_cue", "speedo", "fx_level", "lang", "clear"]
+const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "刹车提示", "车速数字", "画面效果", "语言", "清除成绩"]
 const FX_LEVEL_NAMES: Array[String] = ["完整", "减弱", "最弱"]
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
@@ -312,7 +312,7 @@ func _settings_input(event: InputEvent) -> void:
 				SaveData.data["fx_level"] = posmod(int(SaveData.data.get("fx_level", 0)) + step, FX_LEVEL_NAMES.size())
 				SaveData.save()
 				_main.sfx.play("ui_ok")
-			"fullscreen", "ghost_on", "auto_shift", "speedo":
+			"fullscreen", "ghost_on", "auto_shift", "speedo", "brake_cue":
 				SaveData.data[row] = not bool(SaveData.data.get(row, _default_on(row)))
 				SaveData.apply_settings()
 				SaveData.save()
@@ -339,7 +339,7 @@ func _draw_settings() -> void:
 	_draw_panel(Rect2(Vector2(220.0, 30.0), Vector2(520.0, 500.0)))
 	_text_center(Loc.t("设置"), 44.0 + 32.0, 32, COL_GOLD)
 	for i in SET_ROWS.size():
-		var y := 96.0 + 38.0 * i
+		var y := 96.0 + 35.0 * i
 		var row := SET_ROWS[i]
 		var sel := i == _set_sel
 		if row == "clear":
@@ -347,7 +347,7 @@ func _draw_settings() -> void:
 			_draw_button(label, Vector2(480.0, y), sel, true)
 			continue
 		draw_string(_font, Vector2(250.0, y + 26.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
-		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 34.0))
+		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 31.0))
 		draw_rect(box, COL_TEXT)
 		draw_rect(box.grow(-4.0), COL_GOLD if sel else COL_DARK)
 		var ink := COL_DARK if sel else COL_TEXT
@@ -1242,6 +1242,7 @@ func _draw_frame() -> void:
 	_draw_corner_popup()
 	_draw_banner()
 	_draw_speedo()
+	_draw_brake_cue()
 
 
 # ───────────────────────── 刷新纪录的庆祝（第 3 轮 #4） ─────────────────────────
@@ -1382,6 +1383,30 @@ func _draw_rail_glow() -> void:
 	var clear := Color(COL_RED, 0.0)
 	draw_polygon(PackedVector2Array([Vector2(x0, 0.0), Vector2(x1, 0.0), Vector2(x1, GRID.y), Vector2(x0, GRID.y)]),
 			PackedColorArray([edge, clear, clear, edge]))
+
+
+## 刹车提示辅助（第 4 轮 #3，设置里开，默认关）：按理想车速曲线（PaceProfile，含全力刹车区），
+## 半秒后的位置要求的车速比现在低 brake_cue_margin_kmh 以上、而且现在已经快过那里的理想车速时，
+## 挡风玻璃下方闪"刹车"。踩着刹车时变成暗色（已经在刹了）。
+func _draw_brake_cue() -> void:
+	if not bool(SaveData.data.get("brake_cue", false)) or paused or not (state in [State.RUN, State.PRACTICE]):
+		return
+	if _car.mode != CarSim.Mode.DRIVE or _main.pace_profile == null:
+		return
+	var t := Tuning.d
+	var ahead_s: float = _car.s + _car.v * t.brake_cue_lookahead_s
+	var ideal_ahead: float = _main.pace_profile.ideal(_car.path_id, ahead_s)
+	if ideal_ahead <= 0.0:
+		return
+	var margin := t.brake_cue_margin_kmh * CarSim.KMH
+	if _car.v <= ideal_ahead + margin:
+		return
+	var on := fposmod(Time.get_ticks_msec() / 1000.0 * 6.0, 1.0) < 0.6
+	var col := COL_DIM if _car.brake else (COL_RED if on else COL_TEXT)
+	var r := Rect2(Vector2(420.0, 300.0), Vector2(120.0, 36.0))
+	draw_rect(r, Color(COL_DARKER, 0.8))
+	draw_rect(r, col, false, 3.0)
+	draw_string(_font, Vector2(r.position.x, r.position.y + 27.0), Loc.t("刹车"), HORIZONTAL_ALIGNMENT_CENTER, r.size.x, 22, col)
 
 
 ## 车速数字（设置里开，默认关；开发者 2026-11-19 第 2 轮 #6）：左上角。

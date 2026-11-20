@@ -141,3 +141,7 @@ extends Resource
 @export_group("擦护栏预警（开发者 2026-11-19）")
 @export var rail_warn_frac: float                        ## 外滑到 slide_frac 这个值开始预警（1 = 撞上护栏）
 @export var rail_warn_shake_mm: float                    ## 贴到护栏前一刻的座舱震动幅度
+
+@export_group("刹车提示辅助（开发者 2026-11-19）")
+@export var brake_cue_lookahead_s: float                 ## 看多少秒以后的位置
+@export var brake_cue_margin_kmh: float                  ## 现在比那里的理想车速快这么多才提示

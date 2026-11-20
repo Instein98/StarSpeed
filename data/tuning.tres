@@ -114,3 +114,5 @@ auto_downshift_max_rpm = 7600.0
 auto_downshift_low_rpm = 5200.0
 rail_warn_frac = 0.6
 rail_warn_shake_mm = 5.0
+brake_cue_lookahead_s = 0.5
+brake_cue_margin_kmh = 8.0

@@ -33,6 +33,7 @@ var data: Dictionary = {
 	"ghost_on": true,
 	"auto_shift": false,
 	"speedo": false,        # 车速数字（第 2 轮 #6）
+	"brake_cue": false,     # 刹车提示辅助（第 4 轮 #3）
 	"fx_level": 0,          # 画面效果强度（第 2 轮 #7）：0 完整、1 减弱、2 最弱
 	"best_lap": -1.0,       # 练习环道最快圈（第 3 轮 #5）
 	"achievements": [],     # 已解锁的成就 id（第 3 轮 #3）
@@ -150,7 +151,7 @@ func _erase_keys(action: String) -> void:
 
 ## 设置项的类型（加载时按类型校验；开发者 2026-11-19 第 2 轮 #9）
 const INT_SETTINGS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fx_level"]
-const BOOL_SETTINGS: Array[String] = ["fullscreen", "ghost_on", "auto_shift", "speedo"]
+const BOOL_SETTINGS: Array[String] = ["fullscreen", "ghost_on", "auto_shift", "speedo", "brake_cue"]
 const TMP_PATH := "user://save.json.tmp"
 
 
