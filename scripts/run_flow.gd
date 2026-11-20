@@ -1020,6 +1020,119 @@ func _update_hint() -> void:
 
 # ───────────────────────── 输入 ─────────────────────────
 
+# ───────────────────────── 鼠标（开发者 2026-11-19 第 4 轮 #7） ─────────────────────────
+## 菜单都是画出来的，这里按每个界面的排版算鼠标指着哪一项：移动 = 选中，左键 = 确定，右键 = 返回。
+## 设置里的音量条：点左半边减、右半边加。驾驶中鼠标隐藏，菜单出现时显示。
+
+func _mouse_target() -> String:
+	if _credits_open or _help_open:
+		return "panel"
+	if _set_open:
+		return "settings"
+	if _keys_open:
+		return "keys"
+	if state == State.TITLE:
+		return "title"
+	if paused:
+		return "pause"
+	if state == State.BASE:
+		return "base"
+	if state in [State.RESULTS, State.ENDING, State.INVITE, State.INTRO]:
+		return "panel"
+	return ""
+
+
+## 鼠标在网格坐标 p 处指着第几项（−1 = 没有）。
+func _mouse_index(target: String, p: Vector2) -> int:
+	match target:
+		"title":
+			var n := title_buttons().size()
+			var top := 232.0 if n <= 6 else 206.0
+			var gap := 50.0 if n <= 6 else 46.0
+			for i in n:
+				if Rect2(Vector2(320.0, top + gap * i), BUTTON_SIZE).has_point(p):
+					return i
+		"pause", "base":
+			var n := _pause_items().size() if target == "pause" else BASE_OPTIONS.size()
+			var gap := 34.0
+			if target == "base" or (target == "pause" and not _pause_lines().is_empty()):
+				gap = 30.0
+			for i in n:
+				var y := 215.0 + gap * i
+				if Rect2(Vector2(280.0, y - 24.0), Vector2(400.0, gap)).has_point(p):
+					return i
+		"settings":
+			for i in SET_ROWS.size():
+				var y := 96.0 + 35.0 * i
+				var h := 44.0 if SET_ROWS[i] == "clear" else 31.0
+				if Rect2(Vector2(230.0, y), Vector2(490.0, h)).has_point(p):
+					return i
+		"keys":
+			for i in KEY_ROWS.size():
+				if Rect2(Vector2(230.0, 150.0 + 52.0 * i), Vector2(540.0, 44.0)).has_point(p):
+					return i
+	return -1
+
+
+func _set_menu_index(target: String, i: int) -> void:
+	match target:
+		"title":
+			if i != _title_select:
+				_title_select = i
+				_main.sfx.play("ui_move")
+		"pause":
+			_pause_select = i
+		"base":
+			_select = i
+		"settings":
+			if i != _set_sel:
+				_clear_armed = false
+			_set_sel = i
+		"keys":
+			if not _keys_listen:
+				_keys_sel = i
+
+
+func _act(action: String) -> void:
+	var e := InputEventAction.new()
+	e.action = action
+	e.pressed = true
+	_unhandled_input(e)
+
+
+func _input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	if not (event is InputEventMouse):
+		return
+	var target := _mouse_target()
+	if target == "":
+		return
+	var p: Vector2 = get_global_transform_with_canvas().affine_inverse() * (event as InputEventMouse).position
+	var i := _mouse_index(target, p)
+	if event is InputEventMouseMotion:
+		if i >= 0:
+			_set_menu_index(target, i)
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed:
+		return
+	if mb.button_index == MOUSE_BUTTON_RIGHT:
+		if target in ["settings", "keys", "panel", "pause"]:
+			_act("pause")
+		get_viewport().set_input_as_handled()
+	elif mb.button_index == MOUSE_BUTTON_LEFT:
+		if target == "panel":
+			_act("confirm")
+		elif i >= 0:
+			_set_menu_index(target, i)
+			if target == "settings" and SET_ROWS[i].begins_with("vol_"):
+				_act("ui_left" if p.x < 620.0 else "ui_right")
+			else:
+				_act("confirm")
+		get_viewport().set_input_as_handled()
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if _credits_open or _help_open:
 		if event.is_action_pressed("pause") or event.is_action_pressed("confirm"):
@@ -1154,6 +1267,8 @@ func _process(delta: float) -> void:
 		if state == State.RUN:
 			run_top_kmh = maxf(run_top_kmh, _car.v / CarSim.KMH)
 		_update_lap(delta)
+		if state in [State.RUN, State.PRACTICE] and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
+			Input.mouse_mode = Input.MOUSE_MODE_HIDDEN
 		if state in [State.RUN, State.PRACTICE]:
 			if _car.v / CarSim.KMH >= Tuning.d.top_speed_kmh - 0.5:
 				Achievements.unlock("top")
