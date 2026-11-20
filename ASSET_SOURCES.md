@@ -17,6 +17,7 @@
 | 音乐：星速（驾驶中，三个区段各一首，每首分底轨 / 鼓 / 主音三轨） | `assets/audio/music/star_*.ogg`（森林）、`star_ice_*.ogg`、`star_city_*.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 音乐：氛围（标题、车库） | `assets/audio/music/ambient.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 风声 | `assets/audio/world/wind.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
+| 区段环境声（鸟叫、冰原风啸、城市车流） | `assets/audio/world/amb_forest.ogg`、`amb_ice.ogg`、`amb_city.ogg` | 本项目合成：`tools/make_music.py` | 本项目 |
 | 撞车、爆炸、爆缸 | `assets/audio/world/crash.wav`、`explosion.wav`、`engine_blow.wav` | 本项目合成（2026-11-15 的一次性脚本，没有留在仓库里） | 本项目 |
 | 断油声（已不用） | `assets/audio/engine/limiter.ogg` | 本项目合成（早期一次性脚本） | 本项目 |
 | 界面音、字幕音、起动机、换挡、回火、掠过、贴纸、高光、白化、过弯评价铃声、擦护栏的路肩声、刷新纪录的琶音、进入星速的轰鸣 | `assets/audio/sfx/*.wav` | 本项目合成：`tools/make_sfx.py` | 本项目 |

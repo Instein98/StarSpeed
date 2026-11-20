@@ -305,6 +305,73 @@ def ambient():
     save("ambient", reverb(mix, 4.5, 0.55, seed=7))
 
 
+# ───────────────────────── 区段环境声（开发者 2026-11-19 第 4 轮 #4） ─────────────────────────
+
+def _save_world(name, out, peak):
+    path = os.path.join(os.path.dirname(__file__), "..", "assets", "audio", "world")
+    global OUT
+    keep = OUT
+    OUT = path
+    save(name, out, peak)
+    OUT = keep
+
+
+def amb_forest():
+    """森林：轻的林间风 + 随机的鸟叫（两种：上扬的啾、快速的颤音），12 秒循环。"""
+    n = 12 * RATE
+    r = np.random.default_rng(41)
+    out = lowpass(highpass(r.standard_normal((n, 2)), 200), 1200) * 0.15
+    t_all = np.arange(n) / RATE
+    for k in range(18):
+        start = int(r.uniform(0, 12) * RATE)
+        kind = r.integers(0, 2)
+        dur = 0.18 if kind == 0 else 0.35
+        m = int(dur * RATE)
+        t = np.arange(m) / RATE
+        if kind == 0:
+            f = 2600 + 1400 * (t / dur)
+        else:
+            f = 3200 + 500 * np.sin(2 * np.pi * 28 * t)
+        ph = np.cumsum(f) / RATE
+        env = np.sin(np.pi * t / dur) ** 2
+        chirp = np.sin(2 * np.pi * ph) * env * r.uniform(0.15, 0.35)
+        place(out, stereo(chirp, r.uniform(-0.8, 0.8)), start)
+    _save_world("amb_forest", out, 0.5)
+
+
+def amb_ice():
+    """冰原：空旷的风啸（带共鸣的窄带噪声，音高缓慢起伏）+ 偶尔冰面的细碎声，12 秒循环。"""
+    n = 12 * RATE
+    r = np.random.default_rng(42)
+    noise = r.standard_normal((n, 2))
+    t = np.arange(n) / RATE
+    out = np.zeros((n, 2))
+    for f0, amt in [(420, 0.5), (690, 0.35), (1150, 0.2)]:
+        band = lowpass(highpass(noise, f0 * 0.85), f0 * 1.15, slope=4)
+        swell = 0.6 + 0.4 * np.sin(2 * np.pi * t / 12.0 * r.integers(1, 3) + r.uniform(0, 6))
+        out += band * swell[:, None] * amt
+    out += lowpass(highpass(noise[:, ::-1], 150), 600) * 0.25
+    _save_world("amb_ice", out, 0.5)
+
+
+def amb_city():
+    """城市：远处车流的低沉嗡鸣 + 偶尔很远的喇叭，12 秒循环。"""
+    n = 12 * RATE
+    r = np.random.default_rng(43)
+    noise = r.standard_normal((n, 2))
+    t = np.arange(n) / RATE
+    out = lowpass(noise, 300) * (0.8 + 0.2 * np.sin(2 * np.pi * t / 6.0))[:, None]
+    out += lowpass(highpass(noise[:, ::-1], 600), 2500) * 0.12
+    for k in range(3):
+        start = int(r.uniform(0, 12) * RATE)
+        m = int(0.5 * RATE)
+        tt = np.arange(m) / RATE
+        f = r.choice([392.0, 440.0, 523.0])
+        horn = (np.sign(np.sin(2 * np.pi * f * tt)) * 0.5 + np.sin(2 * np.pi * f * 1.26 * tt) * 0.5) * np.minimum(1, tt / 0.03) * np.exp(-tt * 2)
+        place(out, stereo(lowpass(horn, 1500) * 0.08, r.uniform(-0.9, 0.9)), start)
+    _save_world("amb_city", out, 0.5)
+
+
 # ───────────────────────── S-14 风声 ─────────────────────────
 
 def wind():

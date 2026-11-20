@@ -17,11 +17,19 @@ const POP_SPACING := 0.09
 const PASS_MIN_KMH := 200.0
 const RUMBLE_PATH := "res://assets/audio/sfx/rumble.wav"
 const RUMBLE_DB := -4.0
+## 区段环境声（第 4 轮 #4）：森林 / 冰原 / 城市各一个 12 秒循环，按车所在区段 2 秒交叉淡入淡出；
+## 车越快越小（高速时风声和引擎盖过它，也不该在 600 km/h 还听得见鸟叫）。
+const AMB_FILES := ["amb_forest", "amb_ice", "amb_city"]
+const AMB_DB := -10.0
+const AMB_FADE := 2.0
+const AMB_QUIET_KMH := 300.0
 
 var main: Node
 var car: CarSim
 var _wind: AudioStreamPlayer
 var _rumble: AudioStreamPlayer
+var _amb: Array[AudioStreamPlayer] = []
+var _amb_gain := [0.0, 0.0, 0.0]
 var _lowpass: AudioEffectLowPassFilter
 var _last_pop := -10.0
 var _time := 0.0
@@ -37,6 +45,8 @@ func setup(p_main: Node, p_car: CarSim) -> void:
 	_rng.seed = 707
 	_wind = EngineAudio.make_player(self, EngineAudio.load_stream(WIND_PATH, true), &"Wind")
 	_rumble = EngineAudio.make_player(self, EngineAudio.load_stream(RUMBLE_PATH, true), &"SFX")
+	for f in AMB_FILES:
+		_amb.append(EngineAudio.make_player(self, EngineAudio.load_stream("res://assets/audio/world/" + f + ".ogg", true), &"World"))
 	var bus := AudioServer.get_bus_index(&"World")
 	for i in AudioServer.get_bus_effect_count(bus):
 		if AudioServer.get_bus_effect(bus, i) is AudioEffectLowPassFilter:
@@ -47,6 +57,21 @@ func setup(p_main: Node, p_car: CarSim) -> void:
 		if on and car.mode == CarSim.Mode.DRIVE and main.flow.state in [RunFlow.State.RUN, RunFlow.State.PRACTICE]:
 			main.sfx.play("star_warp"))
 	car.throttle_changed.connect(_on_throttle)
+
+
+func _update_ambience(delta: float, kmh: float) -> void:
+	var want := -1
+	var st: int = main.flow.state
+	if st in [RunFlow.State.RUN, RunFlow.State.PRACTICE, RunFlow.State.RESULTS, RunFlow.State.BASE]:
+		if car.path_id == Track.PATH_MAIN:
+			want = clampi(main.track.section_index_at(car.s), 0, 2)
+		elif not (car.path_id == Track.PATH_ACCESS and car.s < Track.GARAGE_DOOR_Y):
+			want = 0                                     # 出库路（车库外）和环道在森林里
+	var speed_k := clampf(1.0 - kmh / AMB_QUIET_KMH, 0.15, 1.0)
+	for i in _amb.size():
+		_amb_gain[i] = move_toward(_amb_gain[i], 1.0 if i == want else 0.0, delta / AMB_FADE)
+		var g: float = _amb_gain[i] * speed_k
+		_amb[i].volume_db = AMB_DB + linear_to_db(g) if g > 0.001 else -80.0
 
 
 ## 0 – 1：车离护栏有多近（slide_frac 超过 rail_warn_frac 开始，到撞车时为 1）。镜头震动和屏幕边缘红光也用它。
@@ -70,6 +95,7 @@ func _process(delta: float) -> void:
 	var warn := rail_warning(car)
 	_rumble.volume_db = RUMBLE_DB + linear_to_db(warn) if warn > 0.001 and car.mode == CarSim.Mode.DRIVE else -80.0
 	_rumble.pitch_scale = clampf(kmh / 250.0, 0.5, 2.5)
+	_update_ambience(delta, kmh)
 	if _lowpass != null:
 		var k := smoothstep(t.t44_fade_start_kmh, t.t44_fade_full_kmh, v_fx)
 		_lowpass.cutoff_hz = LOWPASS_MAX - (LOWPASS_MAX - LOWPASS_MIN) * k
