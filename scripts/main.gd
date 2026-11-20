@@ -41,7 +41,8 @@ const MINIMAP_ANCHOR_V := 0.727
 @onready var tire_audio: TireAudio = $Audio/TireAudio
 
 enum FailPhase { NONE, PRE, BOOM }
-const RESTART_LEAD := 150.0   ## 重开 / 单区段：放在区段起点线前多少米
+const RESTART_LEAD := 150.0
+const TELEPORT_M := 200.0     ## 一帧移动超过这么多米算瞬移（第 5 轮 #3 回归测试时发现）   ## 重开 / 单区段：放在区段起点线前多少米
 
 var _flash := 0.0
 var _white_frames := 0
@@ -372,6 +373,11 @@ func _update_section_timer(delta: float) -> void:
 	if _timing_section >= 0:
 		_section_time += delta           # 失败演出和复位的时间也算在内
 	var s := car.s
+	# 一个物理帧走了 TELEPORT_M 以上 = 瞬移（调试、测试脚本摆车），不是开过去的：取消这一段的计时，不记成绩和幽灵
+	if _prev_main_s >= 0.0 and absf(s - _prev_main_s) > TELEPORT_M:
+		_timing_section = -1
+		_prev_main_s = s
+		return
 	if _prev_main_s >= 0.0 and s > _prev_main_s:
 		for i in track.gate_s.size():
 			var gate: float = track.gate_s[i]
