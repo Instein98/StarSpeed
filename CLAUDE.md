@@ -21,7 +21,8 @@
 "D:/Software/Godot_v4.5.1/Godot_v4.5.1-stable_win64_console.exe" --headless --path . --script tools/rule_checks.gd
 ```
 
-  输出最后一行是"结果：N 通过，M 失败"。退出后打印的 `grade_at ... Nil` 错误是退出时的残留，可以忽略。输出重定向到文件再读，不要接管道到 `tail`。
+  输出最后一行是"结果：N 通过，M 失败"。
+- 整体回归（改了流程、计时、存档相关的东西后跑，约 1 分钟，最后一行"结果：通过"）：`--headless --path . --audio-driver Dummy --fixed-fps 60 --script tools/e2e_run.gd`。退出后打印的 `grade_at ... Nil` 错误是退出时的残留，可以忽略。输出重定向到文件再读，不要接管道到 `tail`。
 - 隐藏桌面运行的写法（PowerShell，必须在同一进程里用 `&` 调用）：
 
 ```powershell
@@ -35,14 +36,17 @@ $cmd = '"D:\Software\Godot_v4.5.1\Godot_v4.5.1-stable_win64.exe" --path "D:\Clau
 ## 按键
 
 W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上下选择），回车 = 确定 / 回大本营，Esc = 暂停菜单。可以在键位设置里改（存档 `keys`）。
-调试：F2 重新读取调参文件，F3 调试面板，F4 跳到下一个区段起点，F5 轮换画面方案，F6 分层音乐的调试灯。
+R = 计时赛中一键重开，F12 = 截图（存到 user://screenshots/）。手柄：RT 油门、LT 刹车、RB/Y 升档、LB/X 降档、A 确定、Start/B 暂停、Back 重开。菜单也能用鼠标。
+调试：F1 混音面板，F2 重新读取调参文件，F3 调试面板，F4 跳到下一个区段起点，F5 轮换画面方案，F6 分层音乐的调试灯。
 
 ## 一局的流程（`scripts/run_flow.gd`）
 
 - 启动 → 标题画面（漆黑座舱）→ 开始：第一次先看邀请函和 5 条 CEO 字幕（油门键推进，存档 `intro_seen`）→ 长按油门点火（T-50）→ 窗外揭开 → 大本营。暂停菜单可回标题。
-- 大本营：车停在车库里，选"主赛道 计时赛"或"练习环道"，回车出发。两者共用出库路，在岔路口分开（计时赛直行，练习拐进环道）。
+- 大本营：车停在车库里，选"主赛道 计时赛"、"单区段 森林 / 冰原 / 城市"或"练习环道"，回车出发。计时赛和练习共用出库路，在岔路口分开；单区段直接放到那个区段起点线前 150 m。下方信息区 ← → 翻页：奖牌 / 排行 / 统计 / 成就。
 - 计时赛：过森林起点线开始计时，三个区段连着跑；撞车、爆缸都是爆炸后退到弯前复位，计时不停。过森林、冰原终点线时贴纸特效和文字面板；过城市终点线进结尾（白化 → 车库 → 镜头抬向贴纸 → 结尾面板 + CEO 字幕），回车回大本营。
-- 练习：在环道上随便绕圈，不计时，回车回大本营。教学没完成时有 CEO 教学字幕（`tutorial.gd`，存档 `tutorial_done`）。
+- 练习：在环道上绕圈，有圈速和最快圈的幽灵，回车回大本营。教学没完成时有 CEO 教学字幕（`tutorial.gd`，存档 `tutorial_done`）。
+- 存档里新增的键（第 1–5 轮）：设置 `vol_*`、`fullscreen`、`ghost_on`、`auto_shift`、`brake_cue`、`speedo`、`fx_level`；`top_runs`、`best_lap`、`achievements`、`stats`；一次性提示 `tip_restart_shown`、`tip_assist_shown`。幽灵曲线在 `user://ghost.json`。**加新的存档键一定要在 `save_data.gd` 的 `_load()` 里读回**（第 2 轮发现过设置写了却不读回的 bug）。
+- **测试脚本不要瞬移车跨过区段线**：主场景会把它当成跑完区段（现在一帧移动超过 200 m 会取消计时，但别依赖它）；会产生幽灵记录的测试要把 `main.ghost.save_path` 改到别处。
 - 最好成绩存在 `user://save.json`（`SaveData.data` 的 `best_total`、`best_sections`）。**Claude 的测试脚本如果会跑到结算，结束前要把这两项还原再 `save()`，不要把假成绩留在开发者的存档里。最稳妥的做法是开头 `var keep = SaveData.data.duplicate(true)`，结尾 `SaveData.data = keep; SaveData.save()`（包括 `best_medals`、`keys`、`lang`、`intro_seen`、`tutorial_done`）。测试脚本绝不能中途卡住不还原：headless 下不要 `await RenderingServer.frame_post_draw`（永远不会来），会改键位的测试要确保能走到还原那一步。这台电脑的系统语言是英文，存档里没有 `lang` 时新存档会变成英文。**
 - F4 调试瞬移会直接进入计时赛状态；没跑过的区段没有成绩，不记总成绩。
 
@@ -55,7 +59,8 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上�
 - `scripts/car_sim.gd`：全部驾驶规则，不碰画面和声音。`scripts/track.gd`：由分段表生成路面和查询接口。`scripts/main.gd`：把各节点连起来，外加临时的失败演出、复位。`scripts/scenery.gd` + `scenery_models.gd` + `mesh_kit.gd`：区段景物（代码生成的低多边形替身）和摆放。
 - `scripts/camera_rig.gd`（视野、震动、转向不足时的歪头）、`speed_fx.gd` + `shaders/post_world.gdshader`（景物拉线）、`cockpit.gd`（临时座舱和转速表）、`minimap.gd`、`engine_audio.gd`、`tire_audio.gd`、`explosion.gd`。
 - `scripts/run_flow.gd`：全部流程状态和界面（标题、点火、邀请函、字幕条、大本营、暂停、键位设置、贴纸面板、结尾）。`tutorial.gd`、`music.gd`、`world_audio.gd`（风声、换挡、回火、掠过声、高速低通）、`sfx.gd`、`gold_fx.gd`（流星、极光）、`loc.gd` + `data/strings.csv`（中英文，键就是中文原文，界面文字一律 `Loc.t("中文")`）。
-- `tools/`：规则检查脚本、隐藏桌面启动器、`make_sfx.py` / `make_music.py`（代码合成的临时音效、音乐、风声），带 `.gdignore`，不属于游戏。
+- 第 1–5 轮新加的脚本：`ghost.gd`（幽灵和差值）、`corner_judge.gd`（过弯评价）、`achievements.gd`、`pace_profile.gd`（理想车速曲线）、`ui/mix_panel.gd`（F1）、`ui/music_lamps.gd`（F6）。设置、说明、制作人员、成就提示、刹车提示等界面都在 `run_flow.gd`。
+- `tools/`：规则检查脚本、`e2e_run.gd`（整体回归）、`make_icon.py`（程序图标）、隐藏桌面启动器、`make_sfx.py` / `make_music.py`（代码合成的临时音效、音乐、风声），带 `.gdignore`，不属于游戏。
 - 没有 Blender 模型：座舱、仪表是引擎自带几何体的临时替身；路边景物（松树、岩石、冰山、冰锥、冰拱门、楼房、龙门架、护栏、箭头牌、车库和基地、远景环、云）是 `scenery_models.gd` 用代码拼的低多边形替身，按规格 6.4–6.5 的摆放表放在 `scenery.gd` 里。
 
 ## 当前行为里和规格不一样的地方
@@ -71,6 +76,7 @@ W 或空格 = 油门，S = 刹车，↑ / ↓ = 升 / 降档（菜单里是上�
 - 救回原路线时，横向速度不超过 车速 × tan(`slide_return_max_angle_deg`)，画面上车头朝原路线偏（不是横着平移）；车停住就回不了线。
 - 小地图保持规格的样子。试过斜 45° 带网格的放大版，开发者不喜欢，已改回。
 - 主赛道的设计原则（开发者 2026-11-15）：每个区段只有一处能到极速，一次最多持续 2–3 秒；能到 7 档高转（约 507 km/h 以上）的地方每个区段最多 3 处；区段交界的长直道可以快但不到极速。改赛道后用 `tools/track_design.gd` 量这几个数（headless 运行，会用刹车的模拟驾驶员）。
+- 护栏全程两侧，内侧面在 `slide_wall_m + guardrail_gap_m`，撞车那一刻车身正好贴上；城市高架护墙在同一位置。大弯前有 300 / 200 / 100 m 刹车牌，弯道两侧有红白路肩。区段交界前后 250 m 两个区段的景物混着出现（林线、城郊）。
 - 区段起终点在地面上有黑白棋盘格线（`Track.gate_s`；森林的起点线在主赛道 150 m 处）。右上角显示最近 3 个区段的成绩；凡是刷新历史最好的时间，游戏里所有地方都用紫色显示（名字保持正常颜色）。
 - 爆缸没有单独的音效，直接爆炸。
 - 驾驶音乐是分层的（开发者 2026-11-16，替代规格"随车速渐入"）：底轨在计时赛和练习里一直有；鼓和主音按 车速 ÷ 理想车速 叠加（`music_drums_on/off`、`music_lead_on/off`，低于退出线持续 `music_off_hold_s` 才退，撞车时快速淡出）。理想车速由 `pace_profile.gd` 在启动时算：弯道极限车速 + 全油门加速 + 全力刹车的两遍扫描，刹车区也算在内。F6 打开分层音乐的调试灯（三盏灯 + 比例条 + 防抖倒计时）。
