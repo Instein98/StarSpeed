@@ -30,9 +30,11 @@ def star_mask(x, y, cx, cy, r_out, r_in, rot):
     return d <= r_edge
 
 
-def render():
-    M = N * SS
-    ys, xs = np.mgrid[0:M, 0:M].astype(np.float64) / SS
+def render(size=N):
+    """在 256 的坐标系里画，输出 size × size（小尺寸时整体缩放，超采样抗锯齿）。"""
+    ss = SS * max(1, N // size)
+    M = size * ss
+    ys, xs = np.mgrid[0:M, 0:M].astype(np.float64) * (N / M)
     img = np.zeros((M, M, 4))
     # 圆角方块
     r = 44.0
@@ -54,7 +56,7 @@ def render():
     star = star_mask(xs, ys, cx, cy, 80, 33, rot)
     img[star] = (*GOLD, 255)
     # 下采样
-    out = img.reshape(N, SS, N, SS, 4).mean(axis=(1, 3))
+    out = img.reshape(size, ss, size, ss, 4).mean(axis=(1, 3))
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
@@ -70,7 +72,14 @@ if __name__ == "__main__":
     a = render()
     png = png_bytes(a)
     open(os.path.join(ROOT, "icon.png"), "wb").write(png)
-    # ICO：一个 256×256 的 PNG 条目（宽高字段 0 表示 256）
-    ico = struct.pack("<HHH", 0, 1, 1) + struct.pack("<BBBBHHII", 0, 0, 0, 0, 1, 32, len(png), 22) + png
-    open(os.path.join(ROOT, "icon.ico"), "wb").write(ico)
+    # ICO：16 / 32 / 48 / 256 四个 PNG 条目（宽高字段 0 表示 256）。Windows 的小图标用小尺寸，没有时会报警告。
+    entries = [(sz, png if sz == N else png_bytes(render(sz))) for sz in (16, 32, 48, 256)]
+    header = struct.pack("<HHH", 0, 1, len(entries))
+    offset = 6 + 16 * len(entries)
+    dirs = b""
+    blobs = b""
+    for sz, data in entries:
+        dirs += struct.pack("<BBBBHHII", sz % 256, sz % 256, 0, 0, 1, 32, len(data), offset + len(blobs))
+        blobs += data
+    open(os.path.join(ROOT, "icon.ico"), "wb").write(header + dirs + blobs)
     print("wrote icon.png, icon.ico")
