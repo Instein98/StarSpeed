@@ -6,6 +6,7 @@ config_version=5
 [application]
 
 config/name="Star Speed"
+config/version="0.0.3"
 config/icon="res://icon.png"
 boot_splash/bg_color=Color(0.106, 0.133, 0.2, 1)
 boot_splash/image="res://icon.png"

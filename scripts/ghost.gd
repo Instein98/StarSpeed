@@ -80,6 +80,9 @@ func _process(_delta: float) -> void:
 	var show := ghost_s >= 0.0 and bool(SaveData.data.get("ghost_on", true)) and ghost_s > car.s + 2.0 and car.path_id == ghost_path
 	_body.visible = show
 	if show:
+		# 第 5 轮 #8：幽灵离自己很近时变淡，免得挡住前方的路（40 m 外完全显示，5 m 内几乎透明）
+		var gap := ghost_s - car.s
+		(_body.material_override as StandardMaterial3D).albedo_color.a = COL.a * clampf((gap - 5.0) / 35.0, 0.1, 1.0)
 		var xf := track.transform_at(ghost_path, ghost_s)
 		xf.origin += xf.basis.y * LIFT
 		_body.global_transform = xf

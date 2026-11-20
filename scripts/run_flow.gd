@@ -28,8 +28,8 @@ const BASE_PRACTICE := 4
 const PAUSE_OPTIONS: Array[String] = ["继续", "重新开始", "设置", "键位设置", "回大本营", "回到标题", "退出游戏"]
 const PAUSE_RESTART := 1   ## "重新开始"只在计时赛里出现
 ## 设置界面（开发者 2026-11-19 第 1 轮 #4）的行
-const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "brake_cue", "speedo", "fx_level", "lang", "clear"]
-const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "刹车提示", "车速数字", "画面效果", "语言", "清除成绩"]
+const SET_ROWS: Array[String] = ["vol_master", "vol_music", "vol_sfx", "fullscreen", "ghost_on", "auto_shift", "brake_cue", "speedo", "fx_level", "lang", "tutorial", "clear"]
+const SET_ROW_NAMES: Array[String] = ["总音量", "音乐", "音效", "全屏", "幽灵（最好成绩）", "换挡", "刹车提示", "车速数字", "画面效果", "语言", "重新教学", "清除成绩"]
 const FX_LEVEL_NAMES: Array[String] = ["完整", "减弱", "最弱"]
 ## 键位设置（9.10）的行：四个可改键的动作、降档提示灯辅助开关、恢复默认
 const KEY_ROWS: Array[String] = ["throttle", "brake", "shift_up", "shift_down", "assist", "reset"]
@@ -308,11 +308,18 @@ func _settings_input(event: InputEvent) -> void:
 		SaveData.apply_settings()
 		SaveData.save()
 		_main.sfx.play("ui_move")
-	elif event.is_action_pressed("confirm") or (not row.begins_with("vol_") and row != "clear" \
+	elif event.is_action_pressed("confirm") or (not row.begins_with("vol_") and not (row in ["clear", "tutorial"]) \
 			and (event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right"))):
 		match row:
 			"lang":
 				Loc.toggle()
+				_main.sfx.play("ui_ok")
+			"tutorial":
+				# 第 5 轮 #10：重新开始练习环道的教学（下次进练习时从第一步开始），一次性提示也重新出现
+				for flag in ["tutorial_done", "tip_downshift_shown", "tip_restart_shown", "tip_assist_shown"]:
+					SaveData.data[flag] = false
+				SaveData.save()
+				notice(Loc.t("教学已重置"), Loc.t("下次进练习环道时从第一步开始"))
 				_main.sfx.play("ui_ok")
 			"fx_level":
 				var step := -1 if event.is_action_pressed("ui_left") else 1
@@ -346,22 +353,22 @@ func _draw_settings() -> void:
 	_draw_panel(Rect2(Vector2(220.0, 30.0), Vector2(520.0, 500.0)))
 	_text_center(Loc.t("设置"), 44.0 + 32.0, 32, COL_GOLD)
 	for i in SET_ROWS.size():
-		var y := 96.0 + 35.0 * i
+		var y := 92.0 + 33.0 * i
 		var row := SET_ROWS[i]
 		var sel := i == _set_sel
 		if row == "clear":
 			var label := Loc.t("再按一次回车确认") if _clear_armed else Loc.t(SET_ROW_NAMES[i])
 			_draw_button(label, Vector2(480.0, y), sel, true)
 			continue
-		draw_string(_font, Vector2(250.0, y + 26.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
-		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 31.0))
+		draw_string(_font, Vector2(250.0, y + 22.0), Loc.t(SET_ROW_NAMES[i]), HORIZONTAL_ALIGNMENT_LEFT, 250.0, 20, COL_TEXT)
+		var box := Rect2(Vector2(530.0, y), Vector2(180.0, 29.0))
 		draw_rect(box, COL_TEXT)
 		draw_rect(box.grow(-4.0), COL_GOLD if sel else COL_DARK)
 		var ink := COL_DARK if sel else COL_TEXT
 		if row.begins_with("vol_"):
 			var v := int(SaveData.data.get(row, 8))
 			for k in 10:
-				var cell := Rect2(Vector2(box.position.x + 14.0 + k * 15.5, y + 9.0), Vector2(11.0, 18.0))
+				var cell := Rect2(Vector2(box.position.x + 14.0 + k * 15.5, y + 6.0), Vector2(11.0, 17.0))
 				if k < v:
 					draw_rect(cell, ink)
 				else:
@@ -370,14 +377,16 @@ func _draw_settings() -> void:
 			var word := ""
 			if row == "lang":
 				word = "中文" if Loc.lang() == "zh" else "English"
+			elif row == "tutorial":
+				word = Loc.t("重置")
 			elif row == "fx_level":
 				word = Loc.t(FX_LEVEL_NAMES[clampi(int(SaveData.data.get("fx_level", 0)), 0, 2)])
 			else:
 				var on := bool(SaveData.data.get(row, _default_on(row)))
 				word = (Loc.t("自动") if on else Loc.t("手动")) if row == "auto_shift" else (Loc.t("开") if on else Loc.t("关"))
-			draw_string(_font, Vector2(box.position.x, y + 26.0), word, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 20, ink)
+			draw_string(_font, Vector2(box.position.x, y + 22.0), word, HORIZONTAL_ALIGNMENT_CENTER, box.size.x, 18, ink)
 		if sel:
-			var tip := Vector2(232.0, y + 18.0)
+			var tip := Vector2(232.0, y + 15.0)
 			draw_colored_polygon(PackedVector2Array([tip + Vector2(8.0, 0.0), tip + Vector2(-6.0, -8.0), tip + Vector2(-6.0, 8.0)]), COL_RED)
 	draw_string(_font, Vector2(0.0, 506.0 + 12.0), Loc.t("↑ ↓ 选择   ← → 调整   回车 切换   Esc 返回"), HORIZONTAL_ALIGNMENT_CENTER, GRID.x, 12, COL_DIM)
 
@@ -1079,7 +1088,7 @@ func _mouse_index(target: String, p: Vector2) -> int:
 					return i
 		"settings":
 			for i in SET_ROWS.size():
-				var y := 96.0 + 35.0 * i
+				var y := 92.0 + 33.0 * i
 				var h := 44.0 if SET_ROWS[i] == "clear" else 31.0
 				if Rect2(Vector2(230.0, y), Vector2(490.0, h)).has_point(p):
 					return i
@@ -1519,7 +1528,7 @@ func _draw_laps() -> void:
 	var live: float = _main.ghost.delta
 	if _lap_t >= 0.0 and not is_nan(live):
 		_text_right(Loc.t("比最快圈"), right - 96.0, y + 6.0, 13, COL_DIM)
-		_text_right(format_delta(live), right, y + 8.0, 20, COL_FASTER if live < 0.0 else COL_SLOWER)
+		_text_right(format_delta(live), right, y + 8.0, 20, delta_color(live))
 
 
 ## 擦护栏预警的屏幕边缘红光（第 3 轮 #2）：在滑出去的那一侧，从边缘向内渐隐，按 8 Hz 闪。
@@ -1638,13 +1647,13 @@ func _draw_recent() -> void:
 		_text_right(format_time(float(item["time"])), GRID.x - 24.0, y, 16, COL_RECORD if item["record"] else COL_TEXT)
 		var diff := float(item.get("diff", NAN))
 		if not is_nan(diff):
-			_text_right(format_delta(diff), GRID.x - 24.0 - 96.0 - 64.0, y, 13, COL_FASTER if diff < 0.0 else COL_SLOWER)
+			_text_right(format_delta(diff), GRID.x - 24.0 - 96.0 - 64.0, y, 13, delta_color(diff))
 		y += 22.0
 	# 实时差值：本区段到这里比最好那趟快（绿、负）还是慢（红、正）
 	var live: float = _main.ghost.delta if _main.ghost != null else NAN
 	if state == State.RUN and not is_nan(live):
 		_text_right(Loc.t("比最好"), GRID.x - 24.0 - 96.0, y + 6.0, 13, COL_DIM)
-		_text_right(format_delta(live), GRID.x - 24.0, y + 8.0, 20, COL_FASTER if live < 0.0 else COL_SLOWER)
+		_text_right(format_delta(live), GRID.x - 24.0, y + 8.0, 20, delta_color(live))
 
 
 func _draw_results() -> void:
@@ -1689,6 +1698,8 @@ func _draw_title() -> void:
 		var gap := 50.0 if list.size() <= 6 else 46.0
 		_draw_button(str(b[0]), Vector2(480.0, top + gap * i), i == _title_select, bool(b[1]))
 	draw_string(_font, Vector2(24.0, 516.0 + 12.0), Loc.t("↑↓ 选择   回车 确定"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, COL_DIM)
+	# 版本号（第 5 轮 #6）：右下角，读 project.godot 的 application/config/version
+	_text_right("v" + str(ProjectSettings.get_setting("application/config/version", "")), GRID.x - 24.0, 516.0 + 12.0, 12, COL_DIM)
 
 
 ## 9.1 的按钮：320×44，4 像素边框，(4, 4) 更深蓝黑硬投影；选中时金黄填充，左侧外 16 像素一个朱红三角。
@@ -1720,6 +1731,13 @@ func _text_right(text: String, right_x: float, y: float, font_size: int, color: 
 
 func _text_center(text: String, y: float, font_size: int, color: Color, offset := Vector2.ZERO) -> void:
 	draw_string(_font, Vector2(offset.x, y + offset.y), text, HORIZONTAL_ALIGNMENT_CENTER, GRID.x, font_size, color)
+
+
+## 差值的颜色（第 5 轮 #9）：差不到 0.05 秒算持平，用暖白；快了绿、慢了朱红。
+static func delta_color(seconds: float) -> Color:
+	if absf(seconds) < 0.05:
+		return COL_TEXT
+	return COL_FASTER if seconds < 0.0 else COL_SLOWER
 
 
 ## 差值：+0.42 / −1.07（秒，两位小数）。
